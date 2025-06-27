@@ -311,8 +311,32 @@ else:
     if st.sidebar.button("Logout", key="logout_btn_main_app"): logout_user()
 
 st.sidebar.title("Navigation")
-# ... (all your navigation logic based on user role remains the same) ...
-# ...
+section = None # Initialize section to prevent NameError
+
+if st.session_state.authentication_status:
+    current_user_role_val = get_current_user_role()
+    nav_options_full_list = ['Dashboard', 'Job Details', 'Job Time Tracking', 'Material Usage', 'Upload Receipt', 'Down Payments Log', 'Job File Uploads', 'Invoice Generation', 'Reports & Analytics']
+
+    if current_user_role_val == 'Client Viewer':
+        nav_options_client_viewer = ['Dashboard', 'Job Details', 'Down Payments Log', 'Job File Uploads', 'Reports & Analytics']
+        section = st.sidebar.selectbox("Go to", nav_options_client_viewer, key="nav_sel_client_viewer")
+    elif current_user_role_val == 'Admin':
+        nav_options_admin_list = list(nav_options_full_list)
+        if 'User Management' not in nav_options_admin_list: nav_options_admin_list.append('User Management')
+        section = st.sidebar.selectbox("Go to", nav_options_admin_list, key="nav_sel_admin")
+    else: # Contractor, Manager, etc.
+        section = st.sidebar.selectbox("Go to", nav_options_full_list, key="nav_sel_other_roles")
+else:
+    st.warning("Please log in to access the application.")
+    st.stop() # Stop further execution if not logged in
+
+# This block ensures that if a user just logged in, they are sent to the dashboard.
+if section is None and st.session_state.authentication_status:
+    section = "Dashboard"
+    st.rerun()
+
+# === Main App Logic (Sections) ===
+# The script now proceeds to your if/elif blocks for each section...
 # === Main App Logic (Sections) ===
 # NOTE: All calls to save_data('dataframe', 'filename.csv') are replaced with save_data('dataframe', 'worksheet_name')
 
