@@ -318,12 +318,168 @@ st.sidebar.title("Navigation")
 
 if section == 'User Management':
     if current_user_role_val == 'Admin':
-        # ... (Your entire User Management section logic) ...
-        # CHANGE: In the "Create User" form submission:
-        # save_data(users_df_manage_section, 'users.csv') becomes:
-        # save_data(users_df_manage_section, 'users')
-        # All other save_data calls in this section are similarly changed.
-        pass # Placeholder for your code
+        st.header("User Management")
+        users_df_manage_section = load_data('users')
+
+        st.subheader("Create New User")
+        with st.form("new_user_form_um", clear_on_submit=True):
+            new_fname_um = st.text_input("First Name*")
+            new_sname_um = st.text_input("Surname*")
+            new_role_select_um = st.selectbox("Role*", ["Contractor", "Manager", "Admin", "Client Viewer"])
+            assoc_client_input_create_um = ""
+            if new_role_select_um == "Client Viewer":
+                clients_list_create_um = ["Select Client"] + sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+                assoc_client_input_create_um = st.selectbox("Associate with Client*", clients_list_create_um)
+            new_pass_create_um = st.text_input("Password*", type="password")
+            confirm_pass_create_um = st.text_input("Confirm Password*", type="password")
+
+            if st.form_submit_button("Create User"):
+                if not all([new_fname_um, new_sname_um, new_pass_create_um, confirm_pass_create_um]) or \
+                   (new_role_select_um == "Client Viewer" and assoc_client_input_create_um == "Select Client"):
+                    st.error("All fields marked * are required.")
+                elif new_pass_create_um != confirm_pass_create_um: st.error("Passwords do not match.")
+                else:
+                    uname_base_um = (new_fname_um[0] + new_sname_um).lower().replace(" ", "")
+                    uname_final_um = uname_base_um; count = 1
+                    while not users_df_manage_section[users_df_manage_section['Username'] == uname_final_um].empty:
+                        uname_final_um = f"{uname_base_um}{count}"; count += 1
+                    salt_create_um = generate_salt(); phash_create_um = hash_password(new_pass_create_um, salt_create_um)
+                    new_user_data_um = {'Username': uname_final_um, 'PasswordHash': phash_create_um,
+                                        'Salt': salt_create_um, 'Role': new_role_select_um,
+                                        'FirstName': new_fname_um.strip().title(), 'Surname': new_sname_um.strip().title(),
+                                        'AssociatedClientName': assoc_client_input_create_um if new_role_select_um == "Client Viewer" else '',
+                                        'UserUniqueID': uuid.uuid4().hex}
+                    users_df_manage_section = pd.concat([users_df_manage_section, pd.DataFrame([new_user_data_um])], ignore_index=True)
+                    save_data(users_df_manage_section, 'users')
+                    st.success(f"User '{uname_final_um}' created!")
+                    users_df = load_data('users'); st.rerun()
+
+        st.markdown("---"); st.subheader("Existing Users")
+        display_paginated_dataframe(users_df_manage_section[['Username', 'FirstName', 'Surname', 'Role', 'AssociatedClientName']],
+                                      "users_page_display_um", 10)
+
+        # --- Edit User Details ---
+        st.markdown("---"); st.subheader("Edit User Details")
+        edit_user_options_list_um = ["Select User to Edit"] + \
+                                    sorted(users_df_manage_section.apply(lambda r: f"{r['FirstName']} {r['Surname']} ({r['Username']})", axis=1).tolist())
+        selected_user_to_edit_display_um = st.selectbox("Select user to edit:", edit_user_options_list_um, key="select_user_for_edit_um")
+
+        if selected_user_to_edit_display_um != "Select User to Edit":
+            selected_username_for_edit_um = selected_user_to_edit_display_um.split('(')[-1][:-1]
+            user_to_edit_data_series_um = users_df_manage_section[users_df_manage_section['Username'] == selected_username_for_edit_um]
+
+            if not user_to_edit_data_series_um.empty:
+                user_data_for_edit_um = user_to_edit_data_series_um.iloc[0]
+                user_uid_for_edit_um = user_data_for_edit_um['UserUniqueID']
+
+                with st.form(f"edit_user_form_{user_uid_for_edit_um}", clear_on_submit=False):
+                    st.write(f"Editing User: {user_data_for_edit_um['FirstName']} {user_data_for_edit_um['Surname']} ({user_data_for_edit_um['Username']})")
+                    st.caption(f"Username: {user_data_for_edit_um['Username']} (Cannot be changed here)")
+
+                    edit_fname_um_val = st.text_input("First Name*", value=user_data_for_edit_um['FirstName'], key=f"fn_{user_uid_for_edit_um}")
+                    edit_sname_um_val = st.text_input("Surname*", value=user_data_for_edit_um['Surname'], key=f"sn_{user_uid_for_edit_um}")
+
+                    roles_list_edit_um = ["Contractor", "Manager", "Admin", "Client Viewer"]
+                    current_role_idx_um = roles_list_edit_um.index(user_data_for_edit_um['Role']) if user_data_for_edit_um['Role'] in roles_list_edit_um else 0
+                    edit_role_um_val = st.selectbox("Role*", roles_list_edit_um, index=current_role_idx_um, key=f"role_{user_uid_for_edit_um}")
+
+                    assoc_client_current_um = user_data_for_edit_um.get('AssociatedClientName', '')
+                    final_assoc_client_edit_um = assoc_client_current_um
+                    if edit_role_um_val == "Client Viewer":
+                        clients_list_form_um = ["Select Client"] + sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+                        current_assoc_idx_um = 0
+                        if assoc_client_current_um and assoc_client_current_um in clients_list_form_um:
+                            current_assoc_idx_um = clients_list_form_um.index(assoc_client_current_um)
+                        final_assoc_client_edit_um = st.selectbox("Associate with Client*", clients_list_form_um, index=current_assoc_idx_um, key=f"ac_{user_uid_for_edit_um}")
+                    else:
+                        final_assoc_client_edit_um = ""
+
+                    if st.form_submit_button("Save User Changes"):
+                        if not all([edit_fname_um_val, edit_sname_um_val]) or \
+                           (edit_role_um_val == "Client Viewer" and final_assoc_client_edit_um == "Select Client"):
+                            st.error("First Name, Surname are required. Client association is required for Client Viewer role.")
+                        else:
+                            idx_update_um = users_df_manage_section[users_df_manage_section['UserUniqueID'] == user_uid_for_edit_um].index
+                            if not idx_update_um.empty:
+                                users_df_manage_section.loc[idx_update_um[0], 'FirstName'] = edit_fname_um_val.strip().title()
+                                users_df_manage_section.loc[idx_update_um[0], 'Surname'] = edit_sname_um_val.strip().title()
+                                users_df_manage_section.loc[idx_update_um[0], 'Role'] = edit_role_um_val
+                                users_df_manage_section.loc[idx_update_um[0], 'AssociatedClientName'] = final_assoc_client_edit_um if edit_role_um_val == "Client Viewer" else ''
+                                save_data(users_df_manage_section, 'users')
+                                st.success(f"User '{user_data_for_edit_um['Username']}' updated successfully.")
+                                users_df = load_data('users'); st.rerun()
+                            else: st.error("Failed to find user to update. Please refresh.")
+            elif selected_user_to_edit_display_um != "Select User to Edit":
+                st.error("Selected user details could not be retrieved. Please refresh.")
+
+        # --- Delete User ---
+        st.markdown("---"); st.subheader("Delete User")
+        delete_options_um = ["Select User to Delete"] + \
+                            sorted([f"{r['FirstName']} {r['Surname']} ({r['Username']})"
+                                    for _, r in users_df_manage_section.iterrows()
+                                    if r['Username'] != 'admin' and r['Username'] != current_username_val])
+        selected_user_to_delete_disp_um = st.selectbox("Select user to delete:", delete_options_um, key="select_user_for_delete_um")
+
+        if selected_user_to_delete_disp_um != "Select User to Delete":
+            selected_uname_delete_um = selected_user_to_delete_disp_um.split('(')[-1][:-1]
+            user_to_delete_series_um = users_df_manage_section[users_df_manage_section['Username'] == selected_uname_delete_um]
+
+            if not user_to_delete_series_um.empty:
+                user_data_delete_um = user_to_delete_series_um.iloc[0]
+                user_uid_delete_um = user_data_delete_um['UserUniqueID']
+
+                if st.button(f"Request Delete User: {user_data_delete_um['FirstName']} {user_data_delete_um['Surname']}", key=f"req_del_user_btn_{user_uid_delete_um}"):
+                    st.session_state[f"confirm_del_user_flag_{user_uid_delete_um}"] = True
+
+                if st.session_state.get(f"confirm_del_user_flag_{user_uid_delete_um}", False):
+                    st.warning(f"Delete user: **{user_data_delete_um['FirstName']} {user_data_delete_um['Surname']} ({user_data_delete_um['Username']})**? This is irreversible.")
+                    del_c1_um, del_c2_um = st.columns(2)
+                    if del_c1_um.button("YES, DELETE THIS USER", key=f"confirm_del_user_final_btn_{user_uid_delete_um}"):
+                        users_df_manage_section = users_df_manage_section[users_df_manage_section['UserUniqueID'] != user_uid_delete_um]
+                        save_data(users_df_manage_section, 'users')
+                        st.success(f"User '{selected_uname_delete_um}' deleted.")
+                        del st.session_state[f"confirm_del_user_flag_{user_uid_delete_um}"]
+                        users_df = load_data('users'); st.rerun()
+                    if del_c2_um.button("CANCEL DELETION", key=f"cancel_del_user_final_btn_{user_uid_delete_um}"):
+                        del st.session_state[f"confirm_del_user_flag_{user_uid_delete_um}"]; st.rerun()
+            elif selected_user_to_delete_disp_um != "Select User to Delete":
+                st.error("Selected user for deletion not found. Refresh.")
+
+        # --- Admin Password Reset ---
+        st.markdown("---"); st.subheader("Admin Password Reset")
+        if not users_df_manage_section.empty:
+            user_names_reset_um = ["Select User to Reset Password"] + \
+                                  sorted(users_df_manage_section.apply(lambda r: f"{r['FirstName']} {r['Surname']} ({r['Username']})", axis=1).tolist())
+            selected_user_disp_reset_um = st.selectbox("Select user for password reset:", user_names_reset_um, key="select_user_pwd_reset_um")
+
+            if selected_user_disp_reset_um != "Select User to Reset Password":
+                selected_uname_reset_um = selected_user_disp_reset_um.split('(')[-1][:-1]
+                user_record_reset_um_series = users_df_manage_section[users_df_manage_section['Username'] == selected_uname_reset_um]
+                if not user_record_reset_um_series.empty:
+                    user_data_reset_um = user_record_reset_um_series.iloc[0]
+                    with st.form(f"pwd_reset_form_{user_data_reset_um['UserUniqueID']}"):
+                        st.write(f"Resetting password for: **{user_data_reset_um['FirstName']} {user_data_reset_um['Surname']}**")
+                        new_pwd_reset_um = st.text_input("New Password*", type="password", key=f"new_pwd_{user_data_reset_um['UserUniqueID']}")
+                        confirm_pwd_reset_um = st.text_input("Confirm New Password*", type="password", key=f"confirm_pwd_{user_data_reset_um['UserUniqueID']}")
+
+                        if st.form_submit_button("Reset Password"):
+                            if not new_pwd_reset_um or not confirm_pwd_reset_um: st.error("Enter and confirm the new password.")
+                            elif new_pwd_reset_um != confirm_pwd_reset_um: st.error("Passwords do not match.")
+                            else:
+                                new_salt_um = generate_salt(); new_phash_um = hash_password(new_pwd_reset_um, new_salt_um)
+                                idx_update_pwd_um = users_df_manage_section[users_df_manage_section['UserUniqueID'] == user_data_reset_um['UserUniqueID']].index
+                                if not idx_update_pwd_um.empty:
+                                    users_df_manage_section.loc[idx_update_pwd_um[0], 'PasswordHash'] = new_phash_um
+                                    users_df_manage_section.loc[idx_update_pwd_um[0], 'Salt'] = new_salt_um
+                                    save_data(users_df_manage_section, 'users')
+                                    st.success(f"Password for {user_data_reset_um['Username']} reset!")
+                                    users_df = load_data('users'); st.rerun()
+                                else: st.error("User not found for password reset during save. Refresh.")
+                elif selected_user_disp_reset_um != "Select User to Reset Password":
+                    st.error("User details for password reset not found. Refresh.")
+        else: st.info("No users available to reset passwords.")
+    else:
+        st.error("Access restricted to Admin.")
 
 elif section == 'Job Details':
     # ... (Your entire Job Details section logic) ...
