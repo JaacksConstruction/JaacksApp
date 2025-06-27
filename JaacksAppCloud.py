@@ -74,6 +74,7 @@ drive_service, sheets_service = get_google_apis()
 
 # --- NEW DATA HANDLING FUNCTIONS ---
 
+@st.cache_data(ttl="5m")
 def load_data(worksheet_name):
     """Loads a worksheet from Google Sheets into a DataFrame."""
     try:
