@@ -854,15 +854,48 @@ elif section == 'Material Usage':
 
 elif section == 'Upload Receipt':
     st.header("Upload Receipt")
+
     if current_user_role_val in ['Contractor', 'Manager', 'Admin']:
-        # ... (your existing form for selecting job, contractor, amount, etc.) ...
+        job_options_ur_form = ["Select Job"] + sorted(list(jobs_df['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+        selected_job_ur_form = st.selectbox("Select Job for Receipt*", options=job_options_ur_form, key="ur_form_job_select")
+
+        client_name_ur_form = ""
+        job_uid_ur_form = "ERROR_UID_UR"
+        if selected_job_ur_form != "Select Job":
+            job_data_ur_series = jobs_df[jobs_df['Job Name'] == selected_job_ur_form]
+            if not job_data_ur_series.empty:
+                job_data_ur_row = job_data_ur_series.iloc[0]
+                client_name_ur_form = job_data_ur_row['Client']
+                job_uid_ur_form = job_data_ur_row['UniqueID']
+            st.text_input("Client Name (Auto-filled)", value=client_name_ur_form, disabled=True, key="ur_form_client_auto")
+        else:
+            st.text_input("Client Name (Will auto-fill after job selection)", value="", disabled=True, key="ur_form_client_placeholder")
+
+        st.subheader("Upload New Receipt")
         with st.form("new_receipt_form_ur_section", clear_on_submit=True):
-            # ... (your input fields for contractor, amount, payor) ...
+            contractor_name_ur_input = ""
+            if not users_df.empty:
+                contractor_choices_ur_list = sorted(list(users_df[users_df['Role'].isin(['Contractor', 'Admin', 'Manager'])]['FirstName'].astype(str).str.strip().unique()))
+            else:
+                contractor_choices_ur_list = []
+
+            if current_user_role_val == 'Contractor':
+                contractor_name_ur_input = current_user_fullname_val
+                st.text_input("Contractor (Auto-filled)", value=contractor_name_ur_input, disabled=True, key="ur_form_contractor_auto")
+            else:
+                if not contractor_choices_ur_list:
+                    st.warning("No contractors available in user list.")
+                else:
+                    contractor_name_ur_input = st.selectbox("Contractor Name (who incurred cost)*", options=[""] + contractor_choices_ur_list, key="ur_form_contractor_select")
+
+            amount_ur_input_val = st.number_input("Receipt Amount ($)*", min_value=0.01, step=0.01, format="%.2f", key="ur_form_amount")
+            payor_query_ur_text = st.text_input("Payor (start typing or enter new)*", key="ur_form_payor_text")
             uploaded_file_data_ur = st.file_uploader("Upload Receipt File (PDF, PNG, JPG)*", type=['pdf', 'png', 'jpg', 'jpeg'], key="ur_form_file_uploader")
 
             if st.form_submit_button("Save Receipt Information"):
-                if not (contractor_name_ur_input and selected_job_ur_form != "Select Job" and final_payor_ur_form.strip() and uploaded_file_data_ur):
-                    st.error("Please fill all required fields and upload a file.")
+                if not (contractor_name_ur_input and selected_job_ur_form != "Select Job" and payor_query_ur_text.strip() and \
+                        amount_ur_input_val and uploaded_file_data_ur and client_name_ur_form and job_uid_ur_form != "ERROR_UID_UR"):
+                    st.error("Please fill all required fields (*), select a job, and upload a receipt file.")
                 else:
                     with st.spinner("Uploading file and saving info..."):
                         unique_filename = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{uploaded_file_data_ur.name}"
@@ -873,34 +906,50 @@ elif section == 'Upload Receipt':
                                 'Contractor Name': contractor_name_ur_input.strip().title(),
                                 'Client Name': client_name_ur_form.strip(),
                                 'Job Name': selected_job_ur_form.strip(),
-                                'Payor': final_payor_ur_form.strip(),
+                                'Payor': payor_query_ur_text.strip(),
                                 'Amount': amount_ur_input_val,
                                 'File Name': uploaded_file_data_ur.name,
-                                'File Path': receipt_link, # <-- Storing the Google Drive link
+                                'File Path': receipt_link,
                                 'Upload Date': datetime.datetime.now().isoformat(),
                                 'UniqueID': uuid.uuid4().hex,
                                 'JobUniqueID': job_uid_ur_form
                             }
-                            updated_receipts_df_ur = pd.concat([receipts_df, pd.DataFrame([new_receipt_record])], ignore_index=True)
-                            save_data(updated_receipts_df_ur, 'receipts')
+                            updated_receipts_df = pd.concat([receipts_df, pd.DataFrame([new_receipt_record])], ignore_index=True)
+                            save_data(updated_receipts_df, 'receipts')
                             receipts_df = load_data('receipts')
-                            st.success("Receipt uploaded and info saved!")
+                            st.success(f"Receipt '{uploaded_file_data_ur.name}' uploaded and info saved for job '{selected_job_ur_form}'!")
                             st.rerun()
                         else:
-                            st.error("File upload failed. Receipt info not saved.")
+                            st.error("File upload to Google Drive failed. Receipt info not saved.")
+        st.markdown("---")
 
     st.subheader("Uploaded Receipts Log")
-    # ... (your existing logic to filter receipts_df_display_main_ur) ...
-    display_paginated_dataframe(
-        receipts_df_display_main_ur.sort_values(by="Upload Date", ascending=False),
-        "ur_receipts_log_paginated", page_size=5,
-        col_config={
-            "File Path": st.column_config.LinkColumn("View Receipt", display_text="Open File ↗️"),
-            # Hide other columns as you did before
-            "UniqueID": None, "JobUniqueID": None
-        }
-    )
-    # The st.download_button logic can now be removed as links are in the table.
+    receipts_df_display_main_ur = receipts_df.copy()
+    if current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        receipts_df_display_main_ur = receipts_df_display_main_ur[receipts_df_display_main_ur['Client Name'].astype(str).str.strip() == associated_client_name_val.strip()]
+
+    client_list_ur_view_filter = ["All Clients"] + (sorted(list(receipts_df_display_main_ur['Client Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
+    sel_client_ur_view = st.selectbox("Filter by Client (View):", client_list_ur_view_filter,
+                                      key="ur_view_client_filter",
+                                      index=client_list_ur_view_filter.index(st.session_state.get("selected_client_receipt_view", client_list_ur_view_filter[0])))
+    st.session_state.selected_client_receipt_view = sel_client_ur_view
+    if sel_client_ur_view != "All Clients":
+        receipts_df_display_main_ur = receipts_df_display_main_ur[receipts_df_display_main_ur['Client Name'].astype(str).str.strip() == sel_client_ur_view.strip()]
+
+    job_list_ur_view_filter = ["All Jobs"] + (sorted(list(receipts_df_display_main_ur['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
+    sel_job_ur_view = st.selectbox("Filter by Job (View):", job_list_ur_view_filter, key="ur_view_job_filter")
+    if sel_job_ur_view != "All Jobs":
+        receipts_df_display_main_ur = receipts_df_display_main_ur[receipts_df_display_main_ur['Job Name'].astype(str).str.strip() == sel_job_ur_view.strip()]
+
+    display_paginated_dataframe(receipts_df_display_main_ur.sort_values(by="Upload Date", ascending=False),
+                                "ur_receipts_log_paginated", page_size=5,
+                                col_config={
+                                    "File Path": st.column_config.LinkColumn("View Receipt", display_text="Open File ↗️"),
+                                    "Upload Date": st.column_config.DatetimeColumn("Upload Date", format="YYYY-MM-DD HH:mm"),
+                                    "Amount": st.column_config.NumberColumn("Amount",format="$%.2f"),
+                                    "UniqueID": None, "JobUniqueID": None
+                                })
+    # ... (Your logic for editing and deleting receipts) ...
 
 elif section == 'Job File Uploads':
     # Apply the same pattern as 'Upload Receipt'
