@@ -861,6 +861,7 @@ elif section == 'Job Time Tracking':
     # ... (Your logic for editing and deleting time entries) ...
 
 elif section == 'Material Usage':
+    st.write(materials_df.columns)
     st.header("Material Usage")
 
     materials_df_display_mu = materials_df.copy()
