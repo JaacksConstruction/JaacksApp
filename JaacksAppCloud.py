@@ -1248,7 +1248,7 @@ elif section == 'Invoice Generation':
         selected_job_data_for_doc_ig = None
 
         if selected_client_for_doc_ig != "Select Client" and not jobs_df.empty:
-            jobs_of_selected_client_ig = jobs_df[jobs_df['Client'].astype(str).strip() == selected_client_for_doc_ig.strip()]
+            jobs_of_selected_client_ig = jobs_df[jobs_df['Client'].astype(str).str.strip() == selected_client_for_doc_ig.strip()]
             if not jobs_of_selected_client_ig.empty:
                 jobs_available_for_doc_ig.extend(sorted(list(jobs_of_selected_client_ig['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
 
