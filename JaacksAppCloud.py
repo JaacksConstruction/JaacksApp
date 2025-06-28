@@ -626,7 +626,7 @@ elif section == 'Dashboard':
 
         jobs_for_client_filter_dash = jobs_df.copy()
         if client_filter_for_dashboard != "All Clients":
-            jobs_for_client_filter_dash = jobs_for_client_filter_dash[jobs_for_client_filter_dash['Client'].astype(str).strip() == client_filter_for_dashboard.strip()]
+            jobs_for_client_filter_dash = jobs_for_client_filter_dash[jobs_for_client_filter_dash['Client'].astype(str).str.strip() == client_filter_for_dashboard.strip()]
         
         all_jobs_list_dash = ["All Jobs"] + (sorted(list(jobs_for_client_filter_dash['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())) if not jobs_for_client_filter_dash.empty else [])
         current_job_idx_dash = all_jobs_list_dash.index(job_filter_for_dashboard) if job_filter_for_dashboard in all_jobs_list_dash else 0
@@ -736,7 +736,7 @@ elif section == 'Job Details':
     st.subheader("Existing Jobs")
     jobs_display_jd = jobs_df.copy()
     if current_user_role_val == 'Client Viewer' and associated_client_name_val:
-        jobs_display_jd = jobs_display_jd[jobs_display_jd['Client'].astype(str).strip() == associated_client_name_val.strip()]
+        jobs_display_jd = jobs_display_jd[jobs_display_jd['Client'].astype(str).str.strip() == associated_client_name_val.strip()]
         job_names_cv_jd = ["All My Jobs"] + sorted(list(jobs_display_jd['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
         job_filter_cv_jd = st.selectbox("Filter your jobs:", job_names_cv_jd, key="jd_job_filter_cv")
         if job_filter_cv_jd != "All My Jobs":
