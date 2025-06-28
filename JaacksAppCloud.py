@@ -1114,37 +1114,125 @@ elif section == 'Job File Uploads':
 # The PDF generation for invoices will try to save to a Google Drive folder.
 
 elif section == 'Invoice Generation':
-    # ... (your invoice generation logic) ...
-    if st.button(f"Generate {doc_type_selected_ig} PDF"):
-        # ... (after the pdf_output_bytes_final_ig is created) ...
-        pdf_final_filename = f"{doc_type_selected_ig}_{s_job_fn_pdf_save}_{pdf_filename_timestamp}.pdf"
+    st.header("Invoice Generation")
+    if current_user_role_val in ['Admin', 'Manager']:
+        st.subheader("Document Setup")
 
-        # Create a file-like object in memory
-        pdf_io = io.BytesIO(pdf_output_bytes_final_ig)
-        # Create a dummy file object that st.file_uploader would create
-        class DummyFile:
-            def __init__(self, content, name, type):
-                self.content = content
-                self.name = name
-                self.type = type
-            def getvalue(self):
-                return self.content
-        
-        dummy_pdf_file = DummyFile(pdf_io.getvalue(), pdf_final_filename, "application/pdf")
-        
-        # Upload the generated PDF to Google Drive
-        upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
-        
-        if upload_link:
-            st.success(f"Generated {doc_type_selected_ig} saved to Google Drive.")
-            st.markdown(f"**[View Document in Drive]({upload_link})**")
-        else:
-            st.error("Failed to save generated PDF to Google Drive.")
+        # Company Details for PDF
+        st.sidebar.subheader("Company Details for PDF Document")
+        st.session_state.company_name_pdf = st.sidebar.text_input("Company Name (PDF)", value=st.session_state.get("company_name_pdf", "JC Construction"), key="ig_comp_name_pdf_sidebar")
+        st.session_state.company_address_pdf = st.sidebar.text_input("Company Address (PDF)", value=st.session_state.get("company_address_pdf", "123 Default St"), key="ig_comp_addr_pdf_sidebar")
+        st.session_state.company_phone_pdf = st.sidebar.text_input("Company Phone (PDF)", value=st.session_state.get("company_phone_pdf", "(555) 000-0000"), key="ig_comp_phone_pdf_sidebar")
+        st.session_state.company_email_pdf = st.sidebar.text_input("Company Email (PDF)", value=st.session_state.get("company_email_pdf", "contact@example.com"), key="ig_comp_email_pdf_sidebar")
 
-        # Still provide the direct download button
-        st.download_button(label=f"Download {doc_type_selected_ig} PDF", data=pdf_output_bytes_final_ig, file_name=pdf_final_filename, mime="application/pdf")
+        company_details_for_pdf_doc_ig = {
+            "name": st.session_state.company_name_pdf,
+            "address": st.session_state.company_address_pdf,
+            "phone": st.session_state.company_phone_pdf,
+            "email": st.session_state.company_email_pdf
+        }
 
-# ... (rest of your code, e.g., Reports & Analytics) ...
+        doc_type_selected_ig = st.radio("Select Document Type:", ("Estimate", "Invoice"), key="ig_doc_type_radio", horizontal=True)
+
+        # Client and Job Selection
+        clients_available_ig = ["Select Client"] + (sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique())) if not jobs_df.empty else [])
+        selected_client_for_doc_ig = st.selectbox("Client:", clients_available_ig, key="ig_client_doc_select")
+
+        jobs_available_for_doc_ig = ["Select Job"]
+        selected_job_data_for_doc_ig = None
+
+        if selected_client_for_doc_ig != "Select Client" and not jobs_df.empty:
+            jobs_of_selected_client_ig = jobs_df[jobs_df['Client'].astype(str).strip() == selected_client_for_doc_ig.strip()]
+            if not jobs_of_selected_client_ig.empty:
+                jobs_available_for_doc_ig.extend(sorted(list(jobs_of_selected_client_ig['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
+
+        selected_job_name_for_doc_ig = st.selectbox("Job:", jobs_available_for_doc_ig, key="ig_job_doc_select")
+        client_address_for_doc_pdf_ig = st.text_input("Client Address (for PDF):", value="Enter Client Address or N/A", key="ig_client_address_pdf_input")
+        job_description_for_doc_pdf_ig = "N/A"
+
+        if selected_job_name_for_doc_ig != "Select Job" and selected_client_for_doc_ig != "Select Client":
+            job_data_query_for_doc_ig = jobs_df[(jobs_df['Client'].astype(str).strip() == selected_client_for_doc_ig.strip()) &
+                                                (jobs_df['Job Name'].astype(str).strip() == selected_job_name_for_doc_ig.strip())]
+            if not job_data_query_for_doc_ig.empty:
+                selected_job_data_for_doc_ig = job_data_query_for_doc_ig.iloc[0]
+                job_description_for_doc_pdf_ig = selected_job_data_for_doc_ig.get('Description', 'N/A')
+
+        doc_prefix_for_num_ig = "EST" if doc_type_selected_ig == "Estimate" else "INV"
+        doc_num_default_val_ig = f"{doc_prefix_for_num_ig}-{uuid.uuid4().hex[:6].upper()}-{datetime.date.today().strftime('%y%m')}"
+        doc_number_input_ig = st.text_input(f"{doc_type_selected_ig} Number*", value=doc_num_default_val_ig, key="ig_doc_number_input")
+        doc_date_input_ig = st.date_input(f"{doc_type_selected_ig} Date*", value=datetime.date.today(), key="ig_doc_date_input")
+        tax_rate_input_ig = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=st.session_state.get("ig_tax_rate_val", 0.0), step=0.1, format="%.1f", key="ig_tax_rate_input")
+        st.session_state.ig_tax_rate_val = tax_rate_input_ig
+
+        default_notes_text_ig = f"This {doc_type_selected_ig.lower()} outlines the estimated scope and costs." if doc_type_selected_ig == "Estimate" else "Thank you for your business! Payment is due upon receipt."
+        doc_notes_input_ig = st.text_area(f"{doc_type_selected_ig} Notes", value=default_notes_text_ig, key="ig_doc_notes_input", height=100)
+        st.session_state.invoice_terms = st.text_area("Terms & Conditions (shared for all documents)", value=st.session_state.get("invoice_terms", "Payment due upon receipt."), key="ig_shared_terms_input", height=100)
+
+        # --- Your extensive line item configuration logic goes here ---
+        # This part of your code remains the same as it deals with session state.
+
+        st.markdown("---"); st.subheader("Document Line Items")
+        # --- Display and manage line items as before ---
+
+        # --- Calculate Totals ---
+        final_subtotal_ig = sum(float(item.get('total',0.0)) for item in st.session_state.invoice_line_items if str(item.get('description','')).strip())
+        final_tax_amount_ig = final_subtotal_ig * (tax_rate_input_ig / 100)
+        final_grand_total_ig = final_subtotal_ig + final_tax_amount_ig
+        st.markdown(f"#### Subtotal: {format_currency(final_subtotal_ig)}")
+        st.markdown(f"#### Tax ({tax_rate_input_ig}%): {format_currency(final_tax_amount_ig)}")
+        st.markdown(f"### GRAND TOTAL: {format_currency(final_grand_total_ig)}")
+
+        if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
+            if selected_client_for_doc_ig == "Select Client" or selected_job_name_for_doc_ig == "Select Job" or selected_job_data_for_doc_ig is None:
+                st.error("Please select a Client and a valid Job before generating the PDF.")
+            elif not any(str(item.get('description','')).strip() for item in st.session_state.invoice_line_items):
+                st.error("Cannot generate PDF. Please add at least one line item with a description.")
+            else:
+                with st.spinner("Generating and uploading PDF..."):
+                    pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH if LOGO_PATH and Path(LOGO_PATH).is_file() else None)
+                    pdf_gen_doc.set_title(f"{doc_type_selected_ig} - {selected_job_name_for_doc_ig}"); pdf_gen_doc.set_author(company_details_for_pdf_doc_ig["name"]); pdf_gen_doc.add_page()
+                    pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
+                    pdf_gen_doc.bill_to_job_info(client_name=selected_client_for_doc_ig, client_address=client_address_for_doc_pdf_ig, job_name=selected_job_name_for_doc_ig, job_description=job_description_for_doc_pdf_ig)
+
+                    pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
+                    pdf_line_col_widths = [95, 25, 35, 35]
+                    pdf_line_data = [[str(item['description']), format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])]
+                                     for item in st.session_state.invoice_line_items if str(item.get('description','')).strip()]
+
+                    pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
+                    pdf_gen_doc.totals_section(final_subtotal_ig, f"Sales Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
+                    pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
+
+                    pdf_output_bytes_final_ig = pdf_gen_doc.output(dest='S').encode('latin-1')
+                    pdf_final_filename = f"{doc_type_selected_ig}_{sanitize_foldername(selected_job_name_for_doc_ig)}_{datetime.datetime.now().strftime('%Y%m%d')}.pdf"
+
+                    # Create a file-like object for upload
+                    pdf_io = io.BytesIO(pdf_output_bytes_final_ig)
+                    
+                    # Dummy class to mimic st.file_uploader object for our upload function
+                    class DummyFile:
+                        def __init__(self, content, name, type):
+                            self._content = content
+                            self.name = name
+                            self.type = type
+                        def getvalue(self):
+                            return self._content
+
+                    dummy_pdf_file = DummyFile(pdf_io.getvalue(), pdf_final_filename, "application/pdf")
+
+                    # Upload the generated PDF to Google Drive
+                    upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
+
+                    if upload_link:
+                        st.success(f"Generated {doc_type_selected_ig} saved to Google Drive.")
+                        st.markdown(f"**[View Document in Drive]({upload_link})**")
+                    else:
+                        st.error("Failed to save generated PDF to Google Drive.")
+
+                    # Provide the direct download button as well
+                    st.download_button(label=f"Download {doc_type_selected_ig} PDF", data=pdf_output_bytes_final_ig, file_name=pdf_final_filename, mime="application/pdf", key="ig_final_download_pdf_btn")
+    else:
+        st.error("Access restricted to Admin or Manager for Invoice Generation.")
 elif section == 'Reports & Analytics':
     st.header("Reports & Analytics")
 
