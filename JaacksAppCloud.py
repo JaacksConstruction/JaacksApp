@@ -951,6 +951,80 @@ elif section == 'Upload Receipt':
                                 })
     # ... (Your logic for editing and deleting receipts) ...
 
+elif section == 'Down Payments Log':
+    st.header("Down Payments Log")
+
+    dp_df_display_dpl = down_payments_df.copy()
+    if current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        relevant_job_uids_dpl_cv = jobs_df[jobs_df['Client'].astype(str).str.strip() == associated_client_name_val.strip()]['UniqueID'].tolist()
+        dp_df_display_dpl = dp_df_display_dpl[dp_df_display_dpl['JobUniqueID'].isin(relevant_job_uids_dpl_cv)]
+
+    if not dp_df_display_dpl.empty and not jobs_df.empty:
+        job_info_map_dpl = jobs_df.set_index('UniqueID')[['Job Name', 'Client']].copy()
+        missing_job_uids = set(dp_df_display_dpl['JobUniqueID']) - set(job_info_map_dpl.index)
+        if missing_job_uids:
+            missing_data = pd.DataFrame({'Job Name': ['Unknown Job'] * len(missing_job_uids),
+                                         'Client': ['Unknown Client'] * len(missing_job_uids)},
+                                        index=list(missing_job_uids))
+            job_info_map_dpl = pd.concat([job_info_map_dpl, missing_data])
+
+        dp_df_display_dpl = dp_df_display_dpl.join(job_info_map_dpl, on='JobUniqueID', how='left')
+        dp_df_display_dpl.fillna({'Job Name': 'Unknown Job', 'Client': 'Unknown Client'}, inplace=True)
+        job_options_dpl_filter = ["All Jobs"] + sorted(list(dp_df_display_dpl['Job Name'].astype(str).str.strip().replace('Unknown Job','').replace('',np.nan).dropna().unique()))
+    else:
+        job_options_dpl_filter = ["All Jobs"]
+        if 'Job Name' not in dp_df_display_dpl.columns: dp_df_display_dpl['Job Name'] = pd.NA
+        if 'Client' not in dp_df_display_dpl.columns: dp_df_display_dpl['Client'] = pd.NA
+
+    selected_job_dpl_filter = st.selectbox("Filter by Job:", job_options_dpl_filter, key="dpl_job_filter_display")
+    if selected_job_dpl_filter != "All Jobs":
+        dp_df_display_dpl = dp_df_display_dpl[dp_df_display_dpl['Job Name'] == selected_job_dpl_filter]
+
+    st.subheader("Down Payments Record")
+    display_cols_dpl = ['Job Name', 'Client', 'DateReceived', 'Amount', 'PaymentMethod', 'Notes', 'DownPaymentID', 'JobUniqueID']
+    for col_dpl_disp in display_cols_dpl:
+        if col_dpl_disp not in dp_df_display_dpl.columns:
+            dp_df_display_dpl[col_dpl_disp] = pd.NA
+
+    display_paginated_dataframe(dp_df_display_dpl[display_cols_dpl].sort_values(by="DateReceived", ascending=False),
+                                "dpl_paginated_log", 10,
+                                col_config={"DownPaymentID": None, "JobUniqueID": None,
+                                            "DateReceived": st.column_config.DateColumn(format="YYYY-MM-DD"),
+                                            "Amount": st.column_config.NumberColumn(format="$%.2f")})
+
+    if current_user_role_val in ['Admin', 'Manager']:
+        st.markdown("---"); st.subheader("Add New Down Payment")
+        with st.form("new_down_payment_form_dpl", clear_on_submit=True):
+            job_options_dpl_form = ["Select Job"] + sorted(list(jobs_df['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+            selected_job_dpl_form = st.selectbox("Select Job for Down Payment*", options=job_options_dpl_form, key="dpl_form_job_select")
+            dp_date_dpl_form = st.date_input("Date Received*", value=datetime.date.today(), key="dpl_form_date")
+            dp_amount_dpl_form = st.number_input("Amount ($)*", min_value=0.01, step=0.01, format="%.2f", key="dpl_form_amount")
+            dp_method_dpl_form = st.selectbox("Payment Method*", ["Cash", "Check", "Bank Transfer", "Credit Card", "Other"], key="dpl_form_method")
+            dp_notes_dpl_form = st.text_area("Notes", key="dpl_form_notes")
+
+            if st.form_submit_button("Add Down Payment"):
+                if selected_job_dpl_form == "Select Job" or not dp_date_dpl_form or not dp_amount_dpl_form or not dp_method_dpl_form:
+                    st.error("Please fill all required fields (*).")
+                else:
+                    job_data_dpl_series = jobs_df[jobs_df['Job Name'] == selected_job_dpl_form]
+                    if not job_data_dpl_series.empty:
+                        job_uid_dpl_form = job_data_dpl_series.iloc[0]['UniqueID']
+                        new_dp_record = {
+                            'DownPaymentID': uuid.uuid4().hex,
+                            'JobUniqueID': job_uid_dpl_form,
+                            'DateReceived': dp_date_dpl_form,
+                            'Amount': dp_amount_dpl_form,
+                            'PaymentMethod': dp_method_dpl_form,
+                            'Notes': dp_notes_dpl_form.strip()
+                        }
+                        updated_dp_df = pd.concat([down_payments_df, pd.DataFrame([new_dp_record])], ignore_index=True)
+                        save_data(updated_dp_df, 'down_payments')
+                        down_payments_df = load_data('down_payments')
+                        st.success(f"Down payment recorded for '{selected_job_dpl_form}'."); st.rerun()
+                    else:
+                        st.error(f"Job '{selected_job_dpl_form}' not found. Cannot record down payment.")
+        # ... (Your logic for editing and deleting down payments) ...
+
 elif section == 'Job File Uploads':
     # Apply the same pattern as 'Upload Receipt'
     # 1. Use the upload_file_to_drive function in the form submission.
