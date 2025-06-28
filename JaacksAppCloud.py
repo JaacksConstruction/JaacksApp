@@ -373,8 +373,8 @@ try:
     jobs_df = load_data('jobs')
     job_time_df = load_data('job_time')
     materials_df = load_data('materials')
-    st.write("Columns in job_time sheet:", job_time_df.columns)
-    st.write("Columns in materials sheet:", materials_df.columns)
+    #st.write("Columns in job_time sheet:", job_time_df.columns)
+    #st.write("Columns in materials sheet:", materials_df.columns)
     receipts_df = load_data('receipts')
     users_df = load_data('users')
     down_payments_df = load_data('down_payments')
@@ -969,7 +969,7 @@ elif section == 'Job Time Tracking':
     # ... (Your logic for editing and deleting time entries) ...
 
 elif section == 'Material Usage':
-    st.write(materials_df.columns)
+    #st.write(materials_df.columns)
     st.header("Material Usage")
 
     materials_df_display_mu = materials_df.copy()
