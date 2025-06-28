@@ -686,6 +686,85 @@ elif section == 'Dashboard':
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ... (rest of your dashboard chart logic) ...
+st.markdown("---")
+    chart_selection_dash = st.radio(
+        "Select Chart View:",
+        ("Job Status Breakdown", "Hours Comparison (WIP)", "Material Cost Comparison (WIP)"),
+        horizontal=True,
+        key="dashboard_chart_selector_main"
+    )
+
+    if chart_selection_dash == "Job Status Breakdown":
+        st.subheader("Job Status Distribution")
+        if not kpi_df_filtered.empty and 'Status' in kpi_df_filtered.columns and not kpi_df_filtered['Status'].dropna().empty:
+            status_counts_chart = kpi_df_filtered['Status'].astype(str).str.strip().value_counts().reset_index()
+            status_counts_chart.columns = ['Status', 'Count']
+            fig_status = px.bar(status_counts_chart, x='Status', y='Count', text='Count', template="plotly_dark", color='Status')
+            fig_status.update_traces(textfont_size=16, textposition='outside')
+            st.plotly_chart(fig_status, use_container_width=True)
+        else:
+            st.info("No job data with status information for chart based on current filters.")
+
+    elif chart_selection_dash == "Hours Comparison (WIP)":
+        st.subheader("Estimated vs. Actual Hours per Job (WIP Jobs Only)")
+        if not df_wip_kpis.empty:
+            compare_hours_df = df_wip_kpis[['Job Name', 'Estimated Hours', 'UniqueID']].copy()
+            actual_hours_grouped_wip = job_time_df[job_time_df['JobUniqueID'].isin(wip_job_uids_kpi)].groupby('JobUniqueID')['Time Duration (Hours)'].sum().reset_index()
+            actual_hours_grouped_wip.rename(columns={'Time Duration (Hours)': 'Actual Hours', 'JobUniqueID': 'UniqueID'}, inplace=True)
+            compare_hours_df = compare_hours_df.merge(actual_hours_grouped_wip, on='UniqueID', how='left').fillna({'Actual Hours': 0.0})
+
+            if not compare_hours_df.empty:
+                melted_hours_chart = compare_hours_df.melt(id_vars='Job Name', value_vars=['Estimated Hours', 'Actual Hours'], var_name='Metric', value_name='Hours')
+                fig_hours_compare = px.bar(
+                    melted_hours_chart, x='Job Name', y='Hours', color='Metric', barmode='group',
+                    title='Estimated vs. Actual Hours (WIP)', template="plotly_dark", text='Hours',
+                    color_discrete_map={'Estimated Hours': '#FF6347', 'Actual Hours': '#1E90FF'}
+                )
+                fig_hours_compare.update_traces(texttemplate='%{text:.1f} hrs', textposition='outside')
+                st.plotly_chart(fig_hours_compare, use_container_width=True)
+            else:
+                st.info("No WIP job data with hours to compare.")
+        else:
+            st.info("No Work In Progress jobs to display hours comparison.")
+
+    elif chart_selection_dash == "Material Cost Comparison (WIP)":
+        st.subheader("Estimated vs. Actual Material Costs per Job (WIP Jobs Only)")
+        if not df_wip_kpis.empty:
+            compare_mats_df = df_wip_kpis[['Job Name', 'Estimated Materials Cost', 'UniqueID']].copy()
+            mats_usage_cost_wip = materials_df[materials_df['JobUniqueID'].isin(wip_job_uids_kpi)].groupby('JobUniqueID')['Amount'].sum().reset_index().rename(columns={'Amount': 'MatUsage', 'JobUniqueID': 'UniqueID'})
+            receipts_cost_wip = receipts_df[receipts_df['JobUniqueID'].isin(wip_job_uids_kpi)].groupby('JobUniqueID')['Amount'].sum().reset_index().rename(columns={'Amount': 'ReceiptsCost', 'JobUniqueID': 'UniqueID'})
+
+            compare_mats_df = compare_mats_df.merge(mats_usage_cost_wip, on='UniqueID', how='left').fillna({'MatUsage': 0.0})
+            compare_mats_df = compare_mats_df.merge(receipts_cost_wip, on='UniqueID', how='left').fillna({'ReceiptsCost': 0.0})
+            compare_mats_df['Actual Material Cost'] = compare_mats_df['MatUsage'] + compare_mats_df['ReceiptsCost']
+
+            if not compare_mats_df.empty:
+                melted_mats_chart = compare_mats_df.melt(id_vars='Job Name', value_vars=['Estimated Materials Cost', 'Actual Material Cost'], var_name='Metric', value_name='Cost')
+                fig_mats_compare = px.bar(
+                    melted_mats_chart, x='Job Name', y='Cost', color='Metric', barmode='group',
+                    title='Estimated vs. Actual Material Costs (WIP)', template="plotly_dark", text='Cost',
+                    color_discrete_map={'Estimated Materials Cost': '#FF6347', 'Actual Material Cost': '#1E90FF'}
+                )
+                fig_mats_compare.update_traces(texttemplate='$%{text:,.2f}', textposition='outside')
+                st.plotly_chart(fig_mats_compare, use_container_width=True)
+            else:
+                st.info("No WIP job data with material costs to compare.")
+        else:
+            st.info("No Work In Progress jobs to display material cost comparison.")
+
+    st.markdown("---")
+    st.subheader("Job Details Overview (Filtered by Dashboard selections)")
+    display_paginated_dataframe(
+        kpi_df_filtered.sort_values(by="Start Date", ascending=False),
+        "dash_jobs_overview_paginated",
+        styler_fn=highlight_job_deadlines,
+        col_config={
+            "UniqueID": None,
+            "Description": st.column_config.TextColumn(width="medium"),
+            "Start Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD")
+        }
+    )
 
 elif section == 'Job Details':
     st.header("Job Details Management")
