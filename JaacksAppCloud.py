@@ -505,20 +505,352 @@ if section == 'User Management':
     else:
         st.error("Access restricted to Admin.")
 
+elif section == 'Dashboard':
+    st.header("Job Dashboard")
+
+    # Determine dashboard_jobs_df based on role and filters
+    dashboard_jobs_view_df = jobs_df.copy()
+    client_filter_for_dashboard = st.session_state.get("dashboard_client_filter", "All Clients")
+    job_filter_for_dashboard = st.session_state.get("selected_dashboard_job", "All Jobs")
+
+    if current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        dashboard_jobs_view_df = dashboard_jobs_view_df[dashboard_jobs_view_df['Client'].astype(str).strip() == associated_client_name_val.strip()]
+        st.selectbox("Client:", options=[associated_client_name_val], index=0, key="dash_client_viewer_fixed", disabled=True)
+        client_filter_for_dashboard = associated_client_name_val
+        
+        job_names_client_viewer = ["All My Jobs"] + sorted(list(dashboard_jobs_view_df['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+        current_job_filter_cv = job_filter_for_dashboard if job_filter_for_dashboard in job_names_client_viewer else "All My Jobs"
+        job_filter_for_dashboard = st.selectbox("Filter by Job:", options=job_names_client_viewer,
+                                                index=job_names_client_viewer.index(current_job_filter_cv),
+                                                key="dash_job_client_viewer")
+        if job_filter_for_dashboard == "All My Jobs": job_filter_for_dashboard = "All Jobs"
+
+    else: # Admin, Manager, Contractor
+        all_clients_list_dash = ["All Clients"] + (sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique())) if not jobs_df.empty else [])
+        current_client_idx_dash = all_clients_list_dash.index(client_filter_for_dashboard) if client_filter_for_dashboard in all_clients_list_dash else 0
+        client_filter_for_dashboard = st.selectbox("Filter by Client:", options=all_clients_list_dash,
+                                                   index=current_client_idx_dash, key="dash_client_filter_main")
+        st.session_state.dashboard_client_filter = client_filter_for_dashboard
+
+        jobs_for_client_filter_dash = jobs_df.copy()
+        if client_filter_for_dashboard != "All Clients":
+            jobs_for_client_filter_dash = jobs_for_client_filter_dash[jobs_for_client_filter_dash['Client'].astype(str).strip() == client_filter_for_dashboard.strip()]
+        
+        all_jobs_list_dash = ["All Jobs"] + (sorted(list(jobs_for_client_filter_dash['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())) if not jobs_for_client_filter_dash.empty else [])
+        current_job_idx_dash = all_jobs_list_dash.index(job_filter_for_dashboard) if job_filter_for_dashboard in all_jobs_list_dash else 0
+        job_filter_for_dashboard = st.selectbox(f"Filter by Job ({client_filter_for_dashboard if client_filter_for_dashboard != 'All Clients' else 'any client'}):",
+                                                options=all_jobs_list_dash, index=current_job_idx_dash, key="dash_job_filter_main")
+        st.session_state.selected_dashboard_job = job_filter_for_dashboard
+
+    # --- KPI Calculations ---
+    kpi_df_filtered = jobs_df.copy()
+    if client_filter_for_dashboard != "All Clients":
+        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Client'].astype(str).strip() == client_filter_for_dashboard.strip()]
+    if job_filter_for_dashboard != "All Jobs":
+        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Job Name'].astype(str).strip() == job_filter_for_dashboard.strip()]
+
+    total_jobs_kpi = len(kpi_df_filtered)
+    completed_jobs_kpi = len(kpi_df_filtered[kpi_df_filtered['Status'] == 'Completed'])
+    in_progress_jobs_kpi = len(kpi_df_filtered[kpi_df_filtered['Status'] == 'In Progress'])
+
+    df_wip_kpis = kpi_df_filtered[kpi_df_filtered['Status'] == 'In Progress']
+    est_hours_wip_kpi = df_wip_kpis['Estimated Hours'].sum() if not df_wip_kpis.empty else 0.0
+    est_materials_wip_kpi = df_wip_kpis['Estimated Materials Cost'].sum() if not df_wip_kpis.empty else 0.0
+    wip_job_uids_kpi = df_wip_kpis['UniqueID'].astype(str).str.strip().unique().tolist()
+
+    actual_hours_wip_kpi = 0.0
+    if not job_time_df.empty and wip_job_uids_kpi:
+        actual_hours_wip_kpi = job_time_df[job_time_df['JobUniqueID'].isin(wip_job_uids_kpi)]['Time Duration (Hours)'].sum()
+
+    total_actual_materials_wip_kpi = 0.0
+    if wip_job_uids_kpi:
+        mats_wip_cost = materials_df[materials_df['JobUniqueID'].isin(wip_job_uids_kpi)]['Amount'].sum() if not materials_df.empty else 0.0
+        receipts_wip_cost = receipts_df[receipts_df['JobUniqueID'].isin(wip_job_uids_kpi)]['Amount'].sum() if not receipts_df.empty else 0.0
+        total_actual_materials_wip_kpi = mats_wip_cost + receipts_wip_cost
+    
+    total_down_payments_wip_kpi = 0.0
+    if not down_payments_df.empty and wip_job_uids_kpi:
+        total_down_payments_wip_kpi = down_payments_df[down_payments_df['JobUniqueID'].isin(wip_job_uids_kpi)]['Amount'].sum()
+
+    # --- KPI Display ---
+    st.markdown("<div class='kpi-group-container'><div class='kpi-group-title'>Job Activity Overview</div>", unsafe_allow_html=True)
+    kpi_cols_display1 = st.columns(3)
+    kpi_cols_display1[0].markdown(f"<div class='metric-box'><h4>Total Jobs ({'Filtered' if job_filter_for_dashboard != 'All Jobs' or client_filter_for_dashboard != 'All Clients' else 'Overall'})</h4><h2>{total_jobs_kpi}</h2></div>", unsafe_allow_html=True)
+    kpi_cols_display1[1].markdown(f"<div class='metric-box'><h4>Completed Jobs</h4><h2>{completed_jobs_kpi}</h2></div>", unsafe_allow_html=True)
+    kpi_cols_display1[2].markdown(f"<div class='metric-box'><h4>In Progress Jobs</h4><h2>{in_progress_jobs_kpi}</h2></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='kpi-group-container'><div class='kpi-group-title'>Work In Progress (WIP) Estimates</div>", unsafe_allow_html=True)
+    kpi_cols_display2 = st.columns(2)
+    kpi_cols_display2[0].markdown(f"<div class='metric-box'><h4>Est. Hours (WIP)</h4><h2>{format_hours(est_hours_wip_kpi, 0)}</h2></div>", unsafe_allow_html=True)
+    kpi_cols_display2[1].markdown(f"<div class='metric-box'><h4>Est. Material Cost (WIP)</h4><h2>{format_currency(est_materials_wip_kpi)}</h2></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='kpi-group-container'><div class='kpi-group-title'>Work In Progress (WIP) Actuals & Payments</div>", unsafe_allow_html=True)
+    kpi_cols_display3 = st.columns(3)
+    kpi_cols_display3[0].markdown(f"<div class='metric-box'><h4>Actual Hours (WIP)</h4><h2>{format_hours(actual_hours_wip_kpi, 0)}</h2></div>", unsafe_allow_html=True)
+    kpi_cols_display3[1].markdown(f"<div class='metric-box'><h4>Actual Material Cost (WIP)</h4><h2>{format_currency(total_actual_materials_wip_kpi)}</h2></div>", unsafe_allow_html=True)
+    kpi_cols_display3[2].markdown(f"<div class='metric-box'><h4>Total Down Payments (WIP)</h4><h2>{format_currency(total_down_payments_wip_kpi)}</h2></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ... (rest of your dashboard chart logic) ...
+
 elif section == 'Job Details':
-    # ... (Your entire Job Details section logic) ...
-    # CHANGE: All save_data(..., 'jobs.csv') calls become save_data(..., 'jobs')
-    pass # Placeholder for your code
+    st.header("Job Details Management")
+    
+    if current_user_role_val == 'Admin':
+        with st.expander("Add New Job", expanded=False):
+            with st.form("new_job_form_jd", clear_on_submit=True):
+                st.subheader("Add New Job Details")
+                job_name_jd_new = st.text_input("Job Name*", key="jd_new_name")
+                client_jd_new = st.text_input("Client*", key="jd_new_client")
+                status_options_jd_new = ["Planning", "In Progress", "On Hold", "Completed", "Cancelled"]
+                status_jd_new = st.selectbox("Status*", status_options_jd_new, key="jd_new_status", index=0)
+                start_date_jd_new = st.date_input("Start Date", value=None, key="jd_new_start_date")
+                end_date_jd_new = st.date_input("End Date", value=None, key="jd_new_end_date")
+                description_jd_new = st.text_area("Description", key="jd_new_desc")
+                est_hours_jd_new = st.number_input("Estimated Hours", min_value=0.0, step=0.5, format="%.1f", key="jd_new_est_hours")
+                est_mat_cost_jd_new = st.number_input("Estimated Materials Cost ($)", min_value=0.0, step=0.01, format="%.2f", key="jd_new_est_mat_cost")
+                
+                if st.form_submit_button("Add Job"):
+                    if not job_name_jd_new or not client_jd_new or not status_jd_new:
+                        st.error("Job Name, Client, and Status are required.")
+                    else:
+                        new_job_rec = {'Job Name': job_name_jd_new.strip(), 'Client': client_jd_new.strip(), 'Status': status_jd_new,
+                                       'Start Date': pd.to_datetime(start_date_jd_new,errors='coerce').date() if start_date_jd_new else None,
+                                       'End Date': pd.to_datetime(end_date_jd_new,errors='coerce').date() if end_date_jd_new else None,
+                                       'Description': description_jd_new.strip(), 'Estimated Hours': est_hours_jd_new,
+                                       'Estimated Materials Cost': est_mat_cost_jd_new, 'UniqueID': uuid.uuid4().hex}
+                        updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
+                        save_data(updated_jobs_df, 'jobs')
+                        jobs_df = load_data('jobs')
+                        st.success(f"Job '{job_name_jd_new}' added!"); st.rerun()
+        st.markdown("---")
+
+    st.subheader("Existing Jobs")
+    jobs_display_jd = jobs_df.copy()
+    if current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        jobs_display_jd = jobs_display_jd[jobs_display_jd['Client'].astype(str).strip() == associated_client_name_val.strip()]
+        job_names_cv_jd = ["All My Jobs"] + sorted(list(jobs_display_jd['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+        job_filter_cv_jd = st.selectbox("Filter your jobs:", job_names_cv_jd, key="jd_job_filter_cv")
+        if job_filter_cv_jd != "All My Jobs":
+            jobs_display_jd = jobs_display_jd[jobs_display_jd['Job Name'].astype(str).strip() == job_filter_cv_jd]
+
+    display_paginated_dataframe(jobs_display_jd.sort_values(by="Start Date", ascending=False),
+                                "jd_page_display", styler_fn=highlight_job_deadlines,
+                                col_config={"UniqueID": None, "Description": st.column_config.TextColumn(width="large"),
+                                            "Start Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
+                                            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD")})
+
+    if current_user_role_val == 'Admin':
+        st.markdown("---"); st.subheader("Edit or Delete Job")
+        clients_admin_jd = ["All Clients"] + sorted(list(jobs_df['Client'].astype(str).strip().dropna().unique()))
+        client_filter_admin_jd = st.selectbox("Filter Client (for edit/delete):", clients_admin_jd, key="jd_admin_client_filter")
+        
+        jobs_for_edit_admin_jd = jobs_df.copy()
+        if client_filter_admin_jd != "All Clients":
+            jobs_for_edit_admin_jd = jobs_for_edit_admin_jd[jobs_for_edit_admin_jd['Client'] == client_filter_admin_jd]
+        
+        job_to_edit_select_admin_jd = st.selectbox("Select Job to Edit/Delete:",
+                                                   ["Select..."] + sorted(list(jobs_for_edit_admin_jd['Job Name'].unique())),
+                                                   key="jd_admin_job_select")
+        if job_to_edit_select_admin_jd != "Select...":
+            # ... (Your logic for editing and deleting jobs) ...
+            pass
 
 elif section == 'Job Time Tracking':
-    # ... (Your entire Job Time Tracking section logic) ...
-    # CHANGE: All save_data(..., 'job_time.csv') calls become save_data(..., 'job_time')
-    pass # Placeholder for your code
+    st.header("Job Time Tracking")
+
+    # Filters for displaying time entries
+    time_df_display_jtt = job_time_df.copy()
+    job_choices_jtt_filter = ["All Jobs"] + sorted(jobs_df['Job Name'].astype(str).str.strip().unique())
+    contractor_names_for_filter_jtt = users_df[users_df['Role'].isin(['Contractor', 'Admin', 'Manager'])]['FirstName'].astype(str).str.strip().unique()
+    contractor_choices_jtt_filter = ["All Contractors"] + sorted(list(contractor_names_for_filter_jtt))
+
+    selected_contractor_jtt_disp_filter = "All Contractors"
+    if current_user_role_val == 'Contractor':
+        time_df_display_jtt = time_df_display_jtt[time_df_display_jtt['Contractor'] == current_user_fullname_val]
+        selected_contractor_jtt_disp_filter = st.selectbox("Contractor:", options=[current_user_fullname_val],
+                                                           key="jtt_contractor_filter_contractor_view", disabled=True)
+    elif current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        time_df_display_jtt = time_df_display_jtt[time_df_display_jtt['Client'].astype(str).str.strip() == associated_client_name_val.strip()]
+        selected_contractor_jtt_disp_filter = st.selectbox("Filter by Contractor:", options=contractor_choices_jtt_filter,
+                                                           key="jtt_contractor_filter_client_viewer")
+        if selected_contractor_jtt_disp_filter != "All Contractors":
+            time_df_display_jtt = time_df_display_jtt[time_df_display_jtt['Contractor'] == selected_contractor_jtt_disp_filter]
+    else: # Admin, Manager
+        selected_contractor_jtt_disp_filter = st.selectbox("Filter by Contractor:", options=contractor_choices_jtt_filter,
+                                                           key="jtt_contractor_filter_admin_manager")
+        if selected_contractor_jtt_disp_filter != "All Contractors":
+            time_df_display_jtt = time_df_display_jtt[time_df_display_jtt['Contractor'] == selected_contractor_jtt_disp_filter]
+
+    selected_job_jtt_disp_filter = st.selectbox("Filter by Job:", options=job_choices_jtt_filter, key="jtt_job_filter_display")
+    if selected_job_jtt_disp_filter != "All Jobs":
+        time_df_display_jtt = time_df_display_jtt[time_df_display_jtt['Job'] == selected_job_jtt_disp_filter]
+
+    # Form for adding new time entry
+    if current_user_role_val in ['Contractor', 'Admin', 'Manager']:
+        st.subheader("Add New Time Entry")
+        with st.form("new_time_entry_form_jtt", clear_on_submit=True):
+            contractor_for_new_entry_jtt = ""
+            if current_user_role_val == 'Contractor':
+                contractor_for_new_entry_jtt = current_user_fullname_val
+                st.text_input("Contractor (Auto-filled)", value=contractor_for_new_entry_jtt, disabled=True, key="jtt_new_time_contractor_auto")
+            else: # Admin or Manager can select
+                assignable_contractors_jtt = [c for c in contractor_choices_jtt_filter if c != "All Contractors"]
+                if not assignable_contractors_jtt: st.warning("No contractors available to assign time entry.")
+                else: contractor_for_new_entry_jtt = st.selectbox("Contractor*", options=assignable_contractors_jtt, key="jtt_new_time_contractor_select")
+
+            form_jobs_available_jtt = jobs_df.copy()
+            job_options_new_entry_jtt = ["Select Job"] + sorted(form_jobs_available_jtt['Job Name'].astype(str).str.strip().unique().tolist())
+            selected_job_new_entry_jtt = st.selectbox("Job*", options=job_options_new_entry_jtt, key="jtt_new_time_job_select_specific")
+
+            client_for_new_entry_jtt = ""
+            job_uid_for_new_entry_jtt = "ERROR_NO_UID"
+            if selected_job_new_entry_jtt and selected_job_new_entry_jtt != "Select Job":
+                job_data_series_jtt = jobs_df[jobs_df['Job Name'] == selected_job_new_entry_jtt]
+                if not job_data_series_jtt.empty:
+                    job_data_jtt = job_data_series_jtt.iloc[0]
+                    client_for_new_entry_jtt = job_data_jtt['Client']
+                    job_uid_for_new_entry_jtt = job_data_jtt['UniqueID']
+                st.text_input("Client (Auto-filled)", value=client_for_new_entry_jtt, disabled=True, key="jtt_new_time_client_auto")
+            else:
+                st.text_input("Client (Will auto-fill after job selection)", value="", disabled=True, key="jtt_new_time_client_placeholder")
+
+            date_new_entry_jtt = st.date_input("Date*", value=datetime.date.today(), key="jtt_new_time_date")
+            start_time_new_entry_jtt = st.time_input("Start Time*", value=datetime.time(9, 0), key="jtt_new_time_start")
+            end_time_new_entry_jtt = st.time_input("End Time*", value=datetime.time(17, 0), key="jtt_new_time_end")
+
+            if st.form_submit_button("Add Time Entry"):
+                if not (contractor_for_new_entry_jtt and selected_job_new_entry_jtt != "Select Job" and \
+                        date_new_entry_jtt and start_time_new_entry_jtt and end_time_new_entry_jtt and \
+                        client_for_new_entry_jtt and job_uid_for_new_entry_jtt != "ERROR_NO_UID"):
+                    st.error("All fields (*) are required. Ensure Job is selected and Client auto-fills.")
+                elif end_time_new_entry_jtt <= start_time_new_entry_jtt:
+                    st.error("End Time must be after Start Time.")
+                else:
+                    duration_jtt = (datetime.datetime.combine(date_new_entry_jtt, end_time_new_entry_jtt) -
+                                    datetime.datetime.combine(date_new_entry_jtt, start_time_new_entry_jtt)).total_seconds() / 3600
+
+                    new_entry_record_jtt = {'Contractor': contractor_for_new_entry_jtt,
+                                            'Client': client_for_new_entry_jtt,
+                                            'Job': selected_job_new_entry_jtt,
+                                            'Date': date_new_entry_jtt,
+                                            'Start Time': start_time_new_entry_jtt.strftime('%H:%M'),
+                                            'End Time': end_time_new_entry_jtt.strftime('%H:%M'),
+                                            'Time Duration (Hours)': duration_jtt,
+                                            'UniqueID': uuid.uuid4().hex,
+                                            'JobUniqueID': job_uid_for_new_entry_jtt}
+
+                    updated_job_time_df = pd.concat([job_time_df, pd.DataFrame([new_entry_record_jtt])], ignore_index=True)
+                    save_data(updated_job_time_df, 'job_time')
+                    job_time_df = load_data('job_time')
+                    st.success("Time entry added successfully!"); st.rerun()
+
+    st.markdown("---"); st.subheader("Time Entries Log")
+    display_paginated_dataframe(time_df_display_jtt.sort_values(by="Date", ascending=False),
+                                "jtt_time_entries_paginated", 10,
+                                col_config={"UniqueID": None, "JobUniqueID": None,
+                                            "Date": st.column_config.DateColumn(format="YYYY-MM-DD")})
+    # ... (Your logic for editing and deleting time entries) ...
 
 elif section == 'Material Usage':
-    # ... (Your entire Material Usage section logic) ...
-    # CHANGE: All save_data(..., 'materials.csv') calls become save_data(..., 'materials')
-    pass # Placeholder for your code
+    st.header("Material Usage")
+
+    materials_df_display_mu = materials_df.copy()
+
+    job_choices_mu_filter = ["All Jobs"] + sorted(list(jobs_df['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+    if not users_df.empty:
+        contractor_names_for_filter_mu = users_df[users_df['Role'].isin(['Contractor', 'Admin', 'Manager'])]['FirstName'].astype(str).str.strip().unique()
+        contractor_choices_mu_filter = ["All Contractors"] + sorted(list(contractor_names_for_filter_mu))
+    else:
+        contractor_choices_mu_filter = ["All Contractors"]
+        st.warning("User data for contractor filtering is unavailable.")
+
+    selected_contractor_mu_disp_filter = "All Contractors"
+    if current_user_role_val == 'Contractor':
+        materials_df_display_mu = materials_df_display_mu[materials_df_display_mu['Contractor'] == current_user_fullname_val]
+        selected_contractor_mu_disp_filter = st.selectbox("Contractor:", options=[current_user_fullname_val],
+                                                          key="mu_contractor_filter_user_view", disabled=True)
+    elif current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        materials_df_display_mu = materials_df_display_mu[materials_df_display_mu['Client'].astype(str).str.strip() == associated_client_name_val.strip()]
+        selected_contractor_mu_disp_filter = st.selectbox("Filter by Contractor:", options=contractor_choices_mu_filter,
+                                                          key="mu_contractor_filter_client_view")
+        if selected_contractor_mu_disp_filter != "All Contractors":
+            materials_df_display_mu = materials_df_display_mu[materials_df_display_mu['Contractor'] == selected_contractor_mu_disp_filter]
+    else: # Admin, Manager
+        selected_contractor_mu_disp_filter = st.selectbox("Filter by Contractor:", options=contractor_choices_mu_filter,
+                                                          key="mu_contractor_filter_admin_manager")
+        if selected_contractor_mu_disp_filter != "All Contractors":
+            materials_df_display_mu = materials_df_display_mu[materials_df_display_mu['Contractor'] == selected_contractor_mu_disp_filter]
+
+    selected_job_mu_disp_filter = st.selectbox("Filter by Job:", options=job_choices_mu_filter, key="mu_job_filter_display")
+    if selected_job_mu_disp_filter != "All Jobs":
+        materials_df_display_mu = materials_df_display_mu[materials_df_display_mu['Job'] == selected_job_mu_disp_filter]
+
+    if current_user_role_val in ['Contractor', 'Admin', 'Manager']:
+        st.subheader("Add New Material Entry")
+        with st.form("new_material_entry_form_mu_section", clear_on_submit=True):
+            material_name_mu_form = st.text_input("Material Name*", key="mu_form_material_name")
+            amount_mu_form = st.number_input("Amount ($)*", min_value=0.00, step=0.01, format="%.2f", key="mu_form_amount")
+            contractor_input_mu_form_val = ""
+            if current_user_role_val == 'Contractor':
+                contractor_input_mu_form_val = current_user_fullname_val
+                st.text_input("Contractor (Auto-filled)", value=contractor_input_mu_form_val, disabled=True, key="mu_form_contractor_auto")
+            else:
+                assignable_contractors_mu_list = [c for c in contractor_choices_mu_filter if c != "All Contractors"]
+                if not assignable_contractors_mu_list:
+                    st.warning("No contractors available to assign material entry.")
+                else:
+                    contractor_input_mu_form_val = st.selectbox("Contractor*", options=assignable_contractors_mu_list, key="mu_form_contractor_select")
+
+            job_options_mu_form = ["Select Job"] + sorted(list(jobs_df['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+            selected_job_name_mu_form_val = st.selectbox("Job*", options=job_options_mu_form, key="mu_form_job_select")
+
+            client_name_mu_form_val = ""
+            job_uid_mu_form_val = "ERROR_UID_NOT_FOUND"
+            if selected_job_name_mu_form_val and selected_job_name_mu_form_val != "Select Job":
+                job_data_mu_series = jobs_df[jobs_df['Job Name'] == selected_job_name_mu_form_val]
+                if not job_data_mu_series.empty:
+                    job_data_mu_row = job_data_mu_series.iloc[0]
+                    client_name_mu_form_val = job_data_mu_row['Client']
+                    job_uid_mu_form_val = job_data_mu_row['UniqueID']
+                st.text_input("Client (Auto-filled)", value=client_name_mu_form_val, disabled=True, key="mu_form_client_auto")
+            else:
+                st.text_input("Client (Will auto-fill after job selection)", value="", disabled=True, key="mu_form_client_placeholder")
+
+            date_used_mu_form_val = st.date_input("Date Used*", value=datetime.date.today(), key="mu_form_date_used")
+            payor_query_mu_form_text = st.text_input("Payor (start typing for suggestions or enter new)*", key="mu_form_payor_text_input")
+
+            if st.form_submit_button("Add Material Entry"):
+                if not (material_name_mu_form and amount_mu_form is not None and contractor_input_mu_form_val and \
+                        selected_job_name_mu_form_val != "Select Job" and date_used_mu_form_val and \
+                        payor_query_mu_form_text.strip() and client_name_mu_form_val and job_uid_mu_form_val != "ERROR_UID_NOT_FOUND"):
+                    st.error("All fields (*) are required. Ensure Job is selected, Client auto-fills, and Payor is entered.")
+                else:
+                    new_material_record = {
+                        'Material': material_name_mu_form.strip(),
+                        'Contractor': contractor_input_mu_form_val,
+                        'Client': client_name_mu_form_val,
+                        'Job': selected_job_name_mu_form_val,
+                        'Date Used': date_used_mu_form_val,
+                        'Amount': amount_mu_form,
+                        'Payor': payor_query_mu_form_text.strip(),
+                        'UniqueID': uuid.uuid4().hex,
+                        'JobUniqueID': job_uid_mu_form_val
+                    }
+                    updated_materials_df = pd.concat([materials_df, pd.DataFrame([new_material_record])], ignore_index=True)
+                    save_data(updated_materials_df, 'materials')
+                    materials_df = load_data('materials')
+                    st.success("Material entry added successfully!"); st.rerun()
+
+    st.markdown("---"); st.subheader("Material Entries Log")
+    display_paginated_dataframe(materials_df_display_mu.sort_values(by="Date Used", ascending=False),
+                                "mu_entries_paginated_display", 10,
+                                col_config={"UniqueID": None, "JobUniqueID": None,
+                                            "Date Used": st.column_config.DateColumn(format="YYYY-MM-DD"),
+                                            "Amount": st.column_config.NumberColumn(format="$%.2f")})
+    # ... (Your logic for editing and deleting material entries) ...
 
 elif section == 'Upload Receipt':
     st.header("Upload Receipt")
