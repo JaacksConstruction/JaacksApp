@@ -360,6 +360,7 @@ default_session_states = {
     "selected_client_material_view": "All Clients", "selected_client_receipt_view": "All Clients",
     "inv_est_time_job_rate": 65.0,
     "inv_actual_time_total_job_rate": 65.0,
+    "ig_tax_rate_val": 2.041,
 }
 for key, value in default_session_states.items():
     if key not in st.session_state:
