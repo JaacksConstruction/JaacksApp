@@ -750,7 +750,7 @@ elif section == 'Job Details':
 
     if current_user_role_val == 'Admin':
         st.markdown("---"); st.subheader("Edit or Delete Job")
-        clients_admin_jd = ["All Clients"] + sorted(list(jobs_df['Client'].astype(str).strip().dropna().unique()))
+        clients_admin_jd = ["All Clients"] + sorted(list(jobs_df['Client'].astype(str).str.strip().dropna().unique()))
         client_filter_admin_jd = st.selectbox("Filter Client (for edit/delete):", clients_admin_jd, key="jd_admin_client_filter")
         
         jobs_for_edit_admin_jd = jobs_df.copy()
