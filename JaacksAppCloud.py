@@ -637,9 +637,9 @@ elif section == 'Dashboard':
     # --- KPI Calculations ---
     kpi_df_filtered = jobs_df.copy()
     if client_filter_for_dashboard != "All Clients":
-        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Client'].astype(str).strip() == client_filter_for_dashboard.strip()]
+        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Client'].astype(str).str.strip() == client_filter_for_dashboard.strip()]
     if job_filter_for_dashboard != "All Jobs":
-        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Job Name'].astype(str).strip() == job_filter_for_dashboard.strip()]
+        kpi_df_filtered = kpi_df_filtered[kpi_df_filtered['Job Name'].astype(str).str.strip() == job_filter_for_dashboard.strip()]
 
     total_jobs_kpi = len(kpi_df_filtered)
     completed_jobs_kpi = len(kpi_df_filtered[kpi_df_filtered['Status'] == 'Completed'])
