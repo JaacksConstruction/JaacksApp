@@ -687,7 +687,7 @@ elif section == 'Dashboard':
 
     # ... (rest of your dashboard chart logic) ...
     st.markdown("---")
-       chart_selection_dash = st.radio(
+    chart_selection_dash = st.radio(
         "Select Chart View:",
         ("Job Status Breakdown", "Hours Comparison (WIP)", "Material Cost Comparison (WIP)"),
         horizontal=True,
