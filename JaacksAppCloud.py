@@ -325,14 +325,14 @@ default_session_states = {
     "invoice_line_items": [],
     "invoice_terms": "Payment due upon receipt. Thank you for your business!",
     "company_name_pdf": "JC Construction",
-    "company_address_pdf": "123 Building Integrity Way, Brookings, SD 57006",
-    "company_phone_pdf": "(555) 123-4567",
-    "company_email_pdf": "contact@jcconstruction.example.com",
+    "company_address_pdf": "21710 478th Ave,Aurora, SD, 570032",
+    "company_phone_pdf": "(605) 690-6642",
+    "company_email_pdf": "Jcinc2009@gmail.com",
     "admin_edit_job_client_filter": "All Clients", "admin_edit_job_name_filter": "All Jobs",
     "edit_time_entry_contractor_filter": "", "edit_time_entry_date_filter": None,
     "selected_client_material_view": "All Clients", "selected_client_receipt_view": "All Clients",
-    "inv_est_time_job_rate": 50.0,
-    "inv_actual_time_total_job_rate": 50.0,
+    "inv_est_time_job_rate": 65.0,
+    "inv_actual_time_total_job_rate": 65.0,
 }
 for key, value in default_session_states.items():
     if key not in st.session_state:
