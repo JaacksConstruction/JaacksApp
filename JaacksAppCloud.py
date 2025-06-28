@@ -1227,10 +1227,27 @@ elif section == 'Invoice Generation':
 
         # Company Details for PDF
         st.sidebar.subheader("Company Details for PDF Document")
-        st.sidebar.text_input("Company Name (PDF)", key="company_name_pdf")
-        st.sidebar.text_input("Company Address (PDF)", key="company_address_pdf")
-        st.sidebar.text_input("Company Phone (PDF)", key="company_phone_pdf")
-        st.sidebar.text_input("Company Email (PDF)", key="company_email_pdf")
+
+        st.sidebar.text_input(
+             "Company Name (PDF)",
+              value=st.session_state.company_name_pdf,  # Sets the displayed text
+              key="company_name_pdf"                      # Keeps it in sync
+         )
+         st.sidebar.text_input(
+              "Company Address (PDF)",
+               value=st.session_state.company_address_pdf,
+               key="company_address_pdf"
+          )
+          st.sidebar.text_input(
+               "Company Phone (PDF)",
+               value=st.session_state.company_phone_pdf,
+               key="company_phone_pdf"
+           )
+          st.sidebar.text_input(
+              "Company Email (PDF)",
+               value=st.session_state.company_email_pdf,
+               key="company_email_pdf"
+           )
         company_details_for_pdf_doc_ig = {
             "name": st.session_state.company_name_pdf,
             "address": st.session_state.company_address_pdf,
