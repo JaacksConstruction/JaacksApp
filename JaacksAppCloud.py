@@ -686,8 +686,8 @@ elif section == 'Dashboard':
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ... (rest of your dashboard chart logic) ...
-st.markdown("---")
-    chart_selection_dash = st.radio(
+    st.markdown("---")
+       chart_selection_dash = st.radio(
         "Select Chart View:",
         ("Job Status Breakdown", "Hours Comparison (WIP)", "Material Cost Comparison (WIP)"),
         horizontal=True,
