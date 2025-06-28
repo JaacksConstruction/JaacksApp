@@ -43,6 +43,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Global Variables & Setup ---
+file_defs = {
+    'jobs.csv': ['Job Name', 'Client', 'Status', 'Start Date', 'End Date', 'Description', 'Estimated Hours', 'Estimated Materials Cost', 'UniqueID',
+                 'ClientAddress', 'ClientCity', 'ClientState', 'ClientZip'],
+    'job_time.csv': ['Contractor', 'Client', 'Job', 'Date', 'Start Time', 'End Time', 'Time Duration (Hours)', 'UniqueID', 'JobUniqueID'],
+    'materials.csv': ['Material', 'Contractor', 'Client', 'Job', 'Date Used', 'Amount', 'Payor', 'UniqueID', 'JobUniqueID'],
+    'receipts.csv': ['Contractor Name', 'Client Name', 'Job Name', 'Payor', 'Amount', 'File Name', 'File Path', 'Upload Date', 'UniqueID', 'JobUniqueID'],
+    'users.csv': ['Username', 'PasswordHash', 'Salt', 'Role', 'FirstName', 'Surname', 'AssociatedClientName', 'UserUniqueID'],
+    'down_payments.csv': ['DownPaymentID', 'JobUniqueID', 'DateReceived', 'Amount', 'PaymentMethod', 'Notes'],
+    'job_files.csv': ['FileID', 'JobUniqueID', 'FileName', 'RelativePath', 'Category', 'UploadDate', 'UploadedByUsername']
+}
+
 # --- GOOGLE API & DATA HANDLING ---
 
 # These will come from your Streamlit Secrets file (`.streamlit/secrets.toml`)
@@ -604,6 +616,21 @@ elif section == 'Job Details':
                 st.subheader("Add New Job Details")
                 job_name_jd_new = st.text_input("Job Name*", key="jd_new_name")
                 client_jd_new = st.text_input("Client*", key="jd_new_client")
+                # In the 'Job Details' section, inside the "Add New Job" form
+#client_jd_new = st.text_input("Client*", key="jd_new_client")
+
+# --- ADD THIS BLOCK ---
+st.write("Client Address")
+c1, c2 = st.columns(2)
+address_jd_new = c1.text_input("Street Address", key="jd_new_address")
+city_jd_new = c2.text_input("City", key="jd_new_city")
+s1, s2 = st.columns(2)
+state_jd_new = s1.text_input("State", key="jd_new_state")
+zip_jd_new = s2.text_input("Zip Code", key="jd_new_zip")
+# --- END BLOCK ---
+
+status_jd_new = st.selectbox("Status*", status_options_jd_new, key="jd_new_status", index=0)
+
                 status_options_jd_new = ["Planning", "In Progress", "On Hold", "Completed", "Cancelled"]
                 status_jd_new = st.selectbox("Status*", status_options_jd_new, key="jd_new_status", index=0)
                 start_date_jd_new = st.date_input("Start Date", value=None, key="jd_new_start_date")
