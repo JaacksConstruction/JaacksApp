@@ -270,10 +270,12 @@ class PDF(FPDF):
 
         # Format the multi-line client address
         client_address_formatted = (
-            f"{client_data.get('Client', 'N/A')}\n"
-            f"{client_data.get('ClientAddress', '')}\n"
-            f"{client_data.get('ClientCity', '')}, {client_data.get('ClientState', '')} {client_data.get('ClientZip', '')}"
+            f"{client_data['Client']}\n"
+            f"{client_data['ClientAddress']}\n"
+            f"{client_data['ClientCity']}, {client_data['ClientState']} {client_data['ClientZip']}"
         )
+         # ... and further down ...
+
 
         # BILL TO section
         self.set_font(self.font_family, 'B', 11)
@@ -290,8 +292,7 @@ class PDF(FPDF):
         self.multi_cell(90, line_height, "JOB DETAILS:", 0, 'L')
         self.set_font(self.font_family, '', 10)
         self.set_xy(x_start + 100, self.get_y())
-        self.multi_cell(90, line_height, f"Job: {job_data.get('Job Name', 'N/A')}\nDesc: {truncate_text(job_data.get('Description', 'N/A'), 150)}", 0, 'L')
-
+        self.multi_cell(90, line_height, f"Job: {job_data['Job Name']}\nDesc: {truncate_text(job_data['Description'], 150)}", 0, 'L')
         job_details_height = self.get_y() - y_start
         self.set_y(y_start + max(bill_to_height, job_details_height) + 5)
         self.ln(5)
@@ -498,7 +499,7 @@ if section == 'User Management':
                     current_role_idx_um = roles_list_edit_um.index(user_data_for_edit_um['Role']) if user_data_for_edit_um['Role'] in roles_list_edit_um else 0
                     edit_role_um_val = st.selectbox("Role*", roles_list_edit_um, index=current_role_idx_um, key=f"role_{user_uid_for_edit_um}")
 
-                    assoc_client_current_um = user_data_for_edit_um.get('AssociatedClientName', '')
+                    assoc_client_current_um = user_data_for_edit_um['AssociatedClientName'] if 'AssociatedClientName' in user_data_for_edit_um else ''
                     final_assoc_client_edit_um = assoc_client_current_um
                     if edit_role_um_val == "Client Viewer":
                         clients_list_form_um = ["Select Client"] + sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
