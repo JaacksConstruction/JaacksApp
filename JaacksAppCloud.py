@@ -1026,12 +1026,87 @@ elif section == 'Down Payments Log':
         # ... (Your logic for editing and deleting down payments) ...
 
 elif section == 'Job File Uploads':
-    # Apply the same pattern as 'Upload Receipt'
-    # 1. Use the upload_file_to_drive function in the form submission.
-    # 2. Use DRIVE_FOLDER_ID_JOB_FILES as the parent_folder_id.
-    # 3. Save the returned link to the 'File Path' column in the 'job_files' worksheet.
-    # 4. Use st.column_config.LinkColumn to display the clickable link in the dataframe.
-    pass # Placeholder for your refactored code
+    st.header("Job File Uploads")
+
+    # --- Job and Client Selection for Context ---
+    job_file_jobs_filter_df_jfu = jobs_df.copy()
+    if current_user_role_val == 'Client Viewer' and associated_client_name_val:
+        job_file_jobs_filter_df_jfu = job_file_jobs_filter_df_jfu[job_file_jobs_filter_df_jfu['Client'].astype(str).strip() == associated_client_name_val.strip()]
+
+    job_options_jfu_select = ["Select Job to View/Upload Files"] + sorted(list(job_file_jobs_filter_df_jfu['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
+    selected_job_jfu_context = st.selectbox("Select Job:", options=job_options_jfu_select, key="jfu_job_context_select")
+
+    client_name_jfu_context = ""
+    job_uid_jfu_context = None
+    if selected_job_jfu_context != "Select Job to View/Upload Files":
+        job_data_jfu_series = jobs_df[jobs_df['Job Name'] == selected_job_jfu_context]
+        if not job_data_jfu_series.empty:
+            job_data_jfu_row = job_data_jfu_series.iloc[0]
+            client_name_jfu_context = job_data_jfu_row['Client']
+            job_uid_jfu_context = job_data_jfu_row['UniqueID']
+        st.text_input("Client Name (for selected job):", value=client_name_jfu_context, disabled=True, key="jfu_client_context_auto")
+    else:
+        st.text_input("Client Name (Will auto-fill after job selection)", value="", disabled=True, key="jfu_client_context_placeholder")
+
+    # --- File Upload Form ---
+    if current_user_role_val in ['Admin', 'Manager', 'Contractor']:
+        if selected_job_jfu_context != "Select Job to View/Upload Files" and job_uid_jfu_context:
+            st.subheader(f"Upload New File for: {selected_job_jfu_context}")
+            with st.form("new_job_file_upload_form_jfu", clear_on_submit=True):
+                file_category_options_jfu = ["General", "Plans", "Photos", "Reports", "Estimate Pictures", "Change Order Pictures", "Work In Progress Pictures", "Final Pictures", "Other"]
+                file_category_jfu_form = st.selectbox("File Category*", options=file_category_options_jfu, key="jfu_form_category_select")
+                uploaded_job_file_data = st.file_uploader("Upload File*", type=None, key="jfu_form_file_uploader")
+
+                if st.form_submit_button("Upload File"):
+                    if not (file_category_jfu_form and uploaded_job_file_data):
+                        st.error("Please select a category and upload a file.")
+                    else:
+                        with st.spinner("Uploading file to Google Drive..."):
+                            unique_filename = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_job_file_data.name}"
+                            upload_link = upload_file_to_drive(uploaded_job_file_data, unique_filename, DRIVE_FOLDER_ID_JOB_FILES)
+
+                            if upload_link:
+                                new_job_file_record = {
+                                    'FileID': uuid.uuid4().hex,
+                                    'JobUniqueID': job_uid_jfu_context,
+                                    'FileName': uploaded_job_file_data.name,
+                                    'RelativePath': upload_link, # Store the Drive link
+                                    'Category': file_category_jfu_form,
+                                    'UploadDate': datetime.datetime.now().isoformat(),
+                                    'UploadedByUsername': current_username_val
+                                }
+                                updated_job_files_df = pd.concat([job_files_df, pd.DataFrame([new_job_file_record])], ignore_index=True)
+                                save_data(updated_job_files_df, 'job_files')
+                                job_files_df = load_data('job_files')
+                                st.success(f"File '{uploaded_job_file_data.name}' uploaded successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to upload file to Google Drive.")
+        elif selected_job_jfu_context == "Select Job to View/Upload Files":
+            st.info("Select a job above to enable file uploading for that job.")
+
+    # --- Display Existing Job Files ---
+    st.markdown("---"); st.subheader("Existing Job Files")
+    if selected_job_jfu_context != "Select Job to View/Upload Files" and job_uid_jfu_context:
+        job_files_to_display_jfu = job_files_df[job_files_df['JobUniqueID'] == job_uid_jfu_context].copy()
+
+        if not job_files_to_display_jfu.empty:
+            job_files_to_display_jfu['Job Name'] = selected_job_jfu_context
+            job_files_to_display_jfu['Client'] = client_name_jfu_context
+            display_cols_jfu_list = ['FileName', 'Category', 'UploadDate', 'UploadedByUsername']
+
+            st.write(f"Files for job: **{selected_job_jfu_context}** (Client: {client_name_jfu_context})")
+            display_paginated_dataframe(job_files_to_display_jfu.sort_values(by="UploadDate", ascending=False),
+                                        f"jfu_files_for_job_{job_uid_jfu_context}", 5,
+                                        col_config={
+                                            "RelativePath": st.column_config.LinkColumn("View File", display_text="Open File ↗️"),
+                                            "UploadDate": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
+                                            "FileID": None, "JobUniqueID": None,
+                                        })
+        else:
+            st.info(f"No files uploaded yet for job '{selected_job_jfu_context}'.")
+    elif selected_job_jfu_context == "Select Job to View/Upload Files":
+        st.info("Select a job to view or upload associated files.")
 
 # --- Other sections (Down Payments, Invoice, Reports) ---
 # No major changes are needed in these sections unless they involve file I/O.
