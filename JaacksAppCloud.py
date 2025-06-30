@@ -1432,7 +1432,7 @@ elif section == 'Invoice Generation':
                                      for item in st.session_state.invoice_line_items if str(item.get('description','')).strip()]
 
                     pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
-                    pdf_gen_doc.totals_section(final_subtotal_ig, f"Sales Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
+                    pdf_gen_doc.totals_section(final_subtotal_ig, f"Excise Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
                     pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
 
                     pdf_output_bytes_final_ig = pdf_gen_doc.output(dest='S').encode('latin-1')
