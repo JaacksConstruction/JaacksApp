@@ -1379,7 +1379,19 @@ elif section == 'Invoice Generation':
                 jobs_available_for_doc_ig.extend(sorted(list(jobs_of_selected_client_ig['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
 
         selected_job_name_for_doc_ig = st.selectbox("Job:", jobs_available_for_doc_ig, key="ig_job_doc_select")
-        client_address_for_doc_pdf_ig = st.text_input("Client Address (for PDF):", value="Enter Client Address or N/A", key="ig_client_address_pdf_input")
+        st.write("Client Address (auto-populated from Job Details)")
+if selected_job_data_for_doc_ig is not None:
+    # Display the address in disabled fields when a job is selected
+    full_address = (
+        f"{selected_job_data_for_doc_ig.get('ClientAddress', '')}, "
+        f"{selected_job_data_for_doc_ig.get('ClientCity', '')}, "
+        f"{selected_job_data_for_doc_ig.get('ClientState', '')} "
+        f"{selected_job_data_for_doc_ig.get('ClientZip', '')}"
+    )
+    st.text_input("Full Address", value=full_address.strip(', '), disabled=True, key="ig_client_address_auto")
+else:
+    # Show a placeholder if no job is selected
+    st.text_input("Full Address", value="Select a job to see client address", disabled=True)
         job_description_for_doc_pdf_ig = "N/A"
 
         if selected_job_name_for_doc_ig != "Select Job" and selected_client_for_doc_ig != "Select Client":
