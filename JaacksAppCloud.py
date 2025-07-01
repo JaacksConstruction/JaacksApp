@@ -1393,7 +1393,7 @@ elif section == 'Invoice Generation':
         doc_num_default_val_ig = f"{doc_prefix_for_num_ig}-{uuid.uuid4().hex[:6].upper()}-{datetime.date.today().strftime('%y%m')}"
         doc_number_input_ig = st.text_input(f"{doc_type_selected_ig} Number*", value=doc_num_default_val_ig, key="ig_doc_number_input")
         doc_date_input_ig = st.date_input(f"{doc_type_selected_ig} Date*", value=datetime.date.today(), key="ig_doc_date_input")
-        tax_rate_input_ig = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=st.session_state.get("ig_tax_rate_val", 0.0), step=0.1, format="%.1f", key="ig_tax_rate_input")
+        tax_rate_input_ig = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=st.session_state.get("ig_tax_rate_val", 2.041), step=0.1, format="%.1f", key="ig_tax_rate_input")
         st.session_state.ig_tax_rate_val = tax_rate_input_ig
 
         default_notes_text_ig = f"This {doc_type_selected_ig.lower()} outlines the estimated scope and costs." if doc_type_selected_ig == "Estimate" else "Thank you for your business! Payment is due upon receipt."
