@@ -201,22 +201,25 @@ def highlight_job_deadlines(row):
     today = datetime.date.today()
     end_date_val = row.get('End Date')
 
-    # First, ensure end_date_val is a valid date object
-    if pd.notna(end_date_val) and not isinstance(end_date_val, datetime.date):
-        try:
-            # Try to convert it to a date
-            end_date_val = pd.to_datetime(end_date_val).date()
-        except:
-            # If conversion fails, treat it as blank
-            end_date_val = None
-
-    # This is the crucial check: only do the calculation if end_date_val is a real date
-    if isinstance(end_date_val, datetime.date) and row.get('Status') == 'In Progress':
-        delta = (end_date_val - today).days
-        if delta <= 3:
-            style = ['background-color: #FF0000; color: black;'] * len(row)
-        elif delta <= 7:
-            style = ['background-color: #A2FF8A; color: black;'] * len(row)
+    # This block now handles all possible data types safely
+    try:
+        # Check if the value is a valid, non-null date
+        if pd.notna(end_date_val):
+            # Convert to a standard datetime object first
+            end_date_dt = pd.to_datetime(end_date_val)
+            # Then get just the date part for comparison
+            end_date_obj = end_date_dt.date()
+            
+            # Only do the calculation if it's a real date and the job is in progress
+            if isinstance(end_date_obj, datetime.date) and row.get('Status') == 'In Progress':
+                delta = (end_date_obj - today).days
+                if delta <= 3:
+                    style = ['background-color: #FF0000; color: black;'] * len(row)
+                elif delta <= 7:
+                    style = ['background-color: #A2FF8A; color: black;'] * len(row)
+    except (ValueError, TypeError):
+        # If any conversion or subtraction fails, do nothing and just return the default style
+        pass
             
     return style
 
