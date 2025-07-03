@@ -1393,7 +1393,7 @@ else:
     # Show a placeholder if no job is selected
     st.text_input("Full Address", value="Select a job to see client address", disabled=True)
     #job_description_for_doc_pdf_ig = "N/A"
-        if selected_job_name_for_doc_ig != "Select Job" and selected_client_for_doc_ig != "Select Client":
+         if selected_job_name_for_doc_ig != "Select Job" and selected_client_for_doc_ig != "Select Client":
             job_data_query_for_doc_ig = jobs_df[(jobs_df['Client'].astype(str).strip() == selected_client_for_doc_ig.strip()) &
                                                 (jobs_df['Job Name'].astype(str).strip() == selected_job_name_for_doc_ig.strip())]
             if not job_data_query_for_doc_ig.empty:
