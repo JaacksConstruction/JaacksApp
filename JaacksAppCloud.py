@@ -90,7 +90,6 @@ drive_service, sheets_service = get_google_apis()
 def load_data(worksheet_name):
     """Loads a worksheet from Google Sheets into a DataFrame, ensuring columns exist."""
     try:
-        # This dictionary defines the columns for each sheet
         sheet_columns = {
             'jobs': ['Job Name', 'Client', 'Status', 'Start Date', 'End Date', 'Description', 'Estimated Hours', 'Estimated Materials Cost', 'UniqueID', 'ClientAddress', 'ClientCity', 'ClientState', 'ClientZip'],
             'job_time': ['Contractor', 'Client', 'Job', 'Date', 'Start Time', 'End Time', 'Time Duration (Hours)', 'UniqueID', 'JobUniqueID'],
@@ -104,40 +103,40 @@ def load_data(worksheet_name):
         expected_cols = sheet_columns.get(worksheet_name)
         if not expected_cols:
             st.error(f"Column definition not found for worksheet: {worksheet_name}")
-            return pd.DataFrame()
+            return pd.DataFrame(columns=[])
 
         sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
         data = sheet.get_all_records()
         
         if not data:
-            # If the sheet is empty, return a DataFrame with correct columns but no rows
             return pd.DataFrame(columns=expected_cols)
         
         df = pd.DataFrame(data)
         
-        # Ensure all expected columns exist in the DataFrame
         for col in expected_cols:
             if col not in df.columns:
-                df[col] = '' # or np.nan
+                df[col] = ''
         
-        # Reorder columns to match the expected schema
         df = df[expected_cols]
+        
+        # More robust date handling
+        date_cols = [col for col in df.columns if "date" in col.lower()]
+        for col in date_cols:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
 
-        # Type conversions
+        # Other type conversions
         for col in df.columns:
-            if "date" in col.lower():
-                df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
-            elif "cost" in col.lower() or "amount" in col.lower() or "hours" in col.lower():
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            else:
-                df[col] = df[col].astype(str).replace(['nan', 'None', 'NONE', '<NA>'], '')
-
+            if col not in date_cols:
+                if "cost" in col.lower() or "amount" in col.lower() or "hours" in col.lower():
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                else:
+                    df[col] = df[col].astype(str).replace(['nan', 'None', 'NONE', '<NA>', 'NaT'], '')
         return df
     except gspread.exceptions.WorksheetNotFound:
-        st.error(f"Worksheet '{worksheet_name}' not found in your Google Sheet. Please create it.")
+        st.error(f"Worksheet '{worksheet_name}' not found. Please create it in your Google Sheet.")
         return pd.DataFrame(columns=sheet_columns.get(worksheet_name, []))
     except Exception as e:
-        st.error(f"Failed to load data from worksheet '{worksheet_name}': {e}")
+        st.error(f"Failed to load data from '{worksheet_name}': {e}")
         return pd.DataFrame(columns=sheet_columns.get(worksheet_name, []))
 
 def save_data(df_to_save, worksheet_name):
