@@ -838,8 +838,9 @@ elif section == 'Job Details':
                         }
                         updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
                         save_data(updated_jobs_df, 'jobs')
-                        jobs_df = load_data('jobs')
-                        st.success(f"Job '{job_name_jd_new}' added!"); st.rerun()
+                        st.success(f"Job '{job_name_jd_new}' added!"); 
+                        st.cache_data.clear() # Clear cache to show new job immediately
+                        st.rerun()
         st.markdown("---")
 
     st.subheader("Existing Jobs")
@@ -881,7 +882,6 @@ elif section == 'Job Details':
                     edit_name_val = st.text_input("Job Name", value=job_data_edit_admin_jd['Job Name'], key=f"ej_name_{job_uid_edit_admin_jd}")
                     edit_client_val = st.text_input("Client", value=job_data_edit_admin_jd['Client'], key=f"ej_client_{job_uid_edit_admin_jd}")
                     
-                    # Edit address fields
                     st.write("Edit Client Address")
                     c1_edit, c2_edit = st.columns(2)
                     address_jd_edit = c1_edit.text_input("Street Address", value=job_data_edit_admin_jd['ClientAddress'], key=f"ej_addr_{job_uid_edit_admin_jd}")
@@ -922,33 +922,35 @@ elif section == 'Job Details':
                                 jobs_df.loc[idx_update_ej_q[0], 'Estimated Hours'] = edit_eh_val
                                 jobs_df.loc[idx_update_ej_q[0], 'Estimated Materials Cost'] = edit_emc_val
                                 save_data(jobs_df, 'jobs')
-                                jobs_df = load_data('jobs'); st.success(f"Job '{edit_name_val}' updated!"); st.rerun()
+                                st.success(f"Job '{edit_name_val}' updated!")
+                                st.cache_data.clear()
+                                st.rerun()
                             else: st.error("Job not found for update. Refresh.")
                     if del_col_ej_btn.form_submit_button("Delete Job", type="primary"):
                         st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"] = True
 
                 if st.session_state.get(f"confirm_del_job_f_{job_uid_edit_admin_jd}", False):
-                    st.warning(f"Delete job: **{job_data_edit_admin_jd['Job Name']}** and ALL its associated data (time, materials, receipts, files)? This cannot be undone.")
+                    st.warning(f"Delete job: **{job_data_edit_admin_jd['Job Name']}** and ALL its associated data? This cannot be undone.")
                     cd1, cd2 = st.columns(2)
                     if cd1.button("YES, DELETE JOB AND ALL DATA", key=f"del_job_yes_btn_{job_uid_edit_admin_jd}"):
-                        jobs_df_new = jobs_df[jobs_df['UniqueID'] != job_uid_edit_admin_jd]
                         job_time_df_new = job_time_df[job_time_df['JobUniqueID'] != job_uid_edit_admin_jd]
                         materials_df_new = materials_df[materials_df['JobUniqueID'] != job_uid_edit_admin_jd]
                         receipts_df_new = receipts_df[receipts_df['JobUniqueID'] != job_uid_edit_admin_jd]
                         down_payments_df_new = down_payments_df[down_payments_df['JobUniqueID'] != job_uid_edit_admin_jd]
                         job_files_df_new = job_files_df[job_files_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        jobs_df_new = jobs_df[jobs_df['UniqueID'] != job_uid_edit_admin_jd]
                         
-                        save_data(jobs_df_new, 'jobs'); save_data(job_time_df_new, 'job_time')
-                        save_data(materials_df_new, 'materials'); save_data(receipts_df_new, 'receipts')
-                        save_data(down_payments_df_new, 'down_payments'); save_data(job_files_df_new, 'job_files')
-
-                        jobs_df = load_data('jobs'); job_time_df = load_data('job_time'); materials_df = load_data('materials')
-                        receipts_df = load_data('receipts'); down_payments_df = load_data('down_payments'); job_files_df = load_data('job_files')
+                        save_data(job_time_df_new, 'job_time'); save_data(materials_df_new, 'materials')
+                        save_data(receipts_df_new, 'receipts'); save_data(down_payments_df_new, 'down_payments')
+                        save_data(job_files_df_new, 'job_files'); save_data(jobs_df_new, 'jobs')
                         
                         del st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"]
-                        st.success(f"Job '{job_to_edit_select_admin_jd}' and related data deleted."); st.rerun()
+                        st.success(f"Job '{job_to_edit_select_admin_jd}' and related data deleted.")
+                        st.cache_data.clear()
+                        st.rerun()
                     if cd2.button("CANCEL JOB DELETION", key=f"del_job_no_btn_{job_uid_edit_admin_jd}"):
-                        del st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"]; st.rerun()
+                        del st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"]
+                        st.rerun()
 elif section == 'Job Time Tracking':
     st.header("Job Time Tracking")
 
