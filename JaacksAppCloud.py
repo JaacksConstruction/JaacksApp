@@ -798,17 +798,15 @@ elif section == 'Dashboard':
 
 elif section == 'Job Details':
     st.header("Job Details Management")
-    
+
     if current_user_role_val == 'Admin':
         with st.expander("Add New Job", expanded=False):
             with st.form("new_job_form_jd", clear_on_submit=True):
                 st.subheader("Add New Job Details")
                 job_name_jd_new = st.text_input("Job Name*", key="jd_new_name")
                 client_jd_new = st.text_input("Client*", key="jd_new_client")
-                # In the 'Job Details' section, inside the "Add New Job" form
-                #client_jd_new = st.text_input("Client*", key="jd_new_client")
-
-                # --- ADD THIS BLOCK ---
+                
+                # Address Fields
                 st.write("Client Address")
                 c1, c2 = st.columns(2)
                 address_jd_new = c1.text_input("Street Address", key="jd_new_address")
@@ -816,9 +814,7 @@ elif section == 'Job Details':
                 s1, s2 = st.columns(2)
                 state_jd_new = s1.text_input("State", key="jd_new_state")
                 zip_jd_new = s2.text_input("Zip Code", key="jd_new_zip")
-                # --- END BLOCK ---
 
-                #status_jd_new = st.selectbox("Status*", status_options_jd_new, key="jd_new_status", index=0)
                 status_options_jd_new = ["Planning", "In Progress", "On Hold", "Completed", "Cancelled"]
                 status_jd_new = st.selectbox("Status*", status_options_jd_new, key="jd_new_status", index=0)
                 start_date_jd_new = st.date_input("Start Date", value=None, key="jd_new_start_date")
@@ -826,16 +822,20 @@ elif section == 'Job Details':
                 description_jd_new = st.text_area("Description", key="jd_new_desc")
                 est_hours_jd_new = st.number_input("Estimated Hours", min_value=0.0, step=0.5, format="%.1f", key="jd_new_est_hours")
                 est_mat_cost_jd_new = st.number_input("Estimated Materials Cost ($)", min_value=0.0, step=0.01, format="%.2f", key="jd_new_est_mat_cost")
-                
+
                 if st.form_submit_button("Add Job"):
                     if not job_name_jd_new or not client_jd_new or not status_jd_new:
                         st.error("Job Name, Client, and Status are required.")
                     else:
-                        new_job_rec = {'Job Name': job_name_jd_new.strip(), 'Client': client_jd_new.strip(), 'Status': status_jd_new,
-                                       'Start Date': pd.to_datetime(start_date_jd_new,errors='coerce').date() if start_date_jd_new else None,
-                                       'End Date': pd.to_datetime(end_date_jd_new,errors='coerce').date() if end_date_jd_new else None,
-                                       'Description': description_jd_new.strip(), 'Estimated Hours': est_hours_jd_new,
-                                       'Estimated Materials Cost': est_mat_cost_jd_new, 'UniqueID': uuid.uuid4().hex}
+                        new_job_rec = {
+                            'Job Name': job_name_jd_new.strip(), 'Client': client_jd_new.strip(), 'Status': status_jd_new,
+                            'Start Date': pd.to_datetime(start_date_jd_new,errors='coerce').date() if start_date_jd_new else None,
+                            'End Date': pd.to_datetime(end_date_jd_new,errors='coerce').date() if end_date_jd_new else None,
+                            'Description': description_jd_new.strip(), 'Estimated Hours': est_hours_jd_new,
+                            'Estimated Materials Cost': est_mat_cost_jd_new, 'UniqueID': uuid.uuid4().hex,
+                            'ClientAddress': address_jd_new, 'ClientCity': city_jd_new,
+                            'ClientState': state_jd_new, 'ClientZip': zip_jd_new
+                        }
                         updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
                         save_data(updated_jobs_df, 'jobs')
                         jobs_df = load_data('jobs')
@@ -843,36 +843,112 @@ elif section == 'Job Details':
         st.markdown("---")
 
     st.subheader("Existing Jobs")
+
+    # --- Search Bar ---
+    search_query = st.text_input("Search by Job Name or Client Name:", placeholder="Type here to search...")
     jobs_display_jd = jobs_df.copy()
+
+    if search_query:
+        search_query_lower = search_query.lower()
+        jobs_display_jd = jobs_df[
+            jobs_df['Job Name'].str.lower().str.contains(search_query_lower) |
+            jobs_df['Client'].str.lower().str.contains(search_query_lower)
+        ]
+
     if current_user_role_val == 'Client Viewer' and associated_client_name_val:
         jobs_display_jd = jobs_display_jd[jobs_display_jd['Client'].astype(str).str.strip() == associated_client_name_val.strip()]
-        job_names_cv_jd = ["All My Jobs"] + sorted(list(jobs_display_jd['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
-        job_filter_cv_jd = st.selectbox("Filter your jobs:", job_names_cv_jd, key="jd_job_filter_cv")
-        if job_filter_cv_jd != "All My Jobs":
-            jobs_display_jd = jobs_display_jd[jobs_display_jd['Job Name'].astype(str).strip() == job_filter_cv_jd]
 
     display_paginated_dataframe(jobs_display_jd.sort_values(by="Start Date", ascending=False),
                                 "jd_page_display", styler_fn=highlight_job_deadlines,
                                 col_config={"UniqueID": None, "Description": st.column_config.TextColumn(width="large"),
                                             "Start Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
-                                            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD")})
+                                            "End Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
+                                            "ClientAddress": None, "ClientCity": None, "ClientState": None, "ClientZip": None})
 
     if current_user_role_val == 'Admin':
         st.markdown("---"); st.subheader("Edit or Delete Job")
-        clients_admin_jd = ["All Clients"] + sorted(list(jobs_df['Client'].astype(str).str.strip().dropna().unique()))
-        client_filter_admin_jd = st.selectbox("Filter Client (for edit/delete):", clients_admin_jd, key="jd_admin_client_filter")
-        
-        jobs_for_edit_admin_jd = jobs_df.copy()
-        if client_filter_admin_jd != "All Clients":
-            jobs_for_edit_admin_jd = jobs_for_edit_admin_jd[jobs_for_edit_admin_jd['Client'] == client_filter_admin_jd]
-        
-        job_to_edit_select_admin_jd = st.selectbox("Select Job to Edit/Delete:",
-                                                   ["Select..."] + sorted(list(jobs_for_edit_admin_jd['Job Name'].unique())),
-                                                   key="jd_admin_job_select")
-        if job_to_edit_select_admin_jd != "Select...":
-            # ... (Your logic for editing and deleting jobs) ...
-            pass
+        job_to_edit_options = ["Select..."] + sorted(list(jobs_display_jd['Job Name'].unique()))
+        job_to_edit_select_admin_jd = st.selectbox("Select Job from filtered list to Edit/Delete:",
+                                                   options=job_to_edit_options, key="jd_admin_job_select")
 
+        if job_to_edit_select_admin_jd != "Select...":
+            job_data_series_admin_jd = jobs_display_jd[jobs_display_jd['Job Name'] == job_to_edit_select_admin_jd]
+            if not job_data_series_admin_jd.empty:
+                job_data_edit_admin_jd = job_data_series_admin_jd.iloc[0]
+                job_uid_edit_admin_jd = job_data_edit_admin_jd['UniqueID']
+                with st.form(f"edit_job_form_{job_uid_edit_admin_jd}"):
+                    st.write(f"Editing Job: {job_data_edit_admin_jd['Job Name']}")
+                    edit_name_val = st.text_input("Job Name", value=job_data_edit_admin_jd['Job Name'], key=f"ej_name_{job_uid_edit_admin_jd}")
+                    edit_client_val = st.text_input("Client", value=job_data_edit_admin_jd['Client'], key=f"ej_client_{job_uid_edit_admin_jd}")
+                    
+                    # Edit address fields
+                    st.write("Edit Client Address")
+                    c1_edit, c2_edit = st.columns(2)
+                    address_jd_edit = c1_edit.text_input("Street Address", value=job_data_edit_admin_jd['ClientAddress'], key=f"ej_addr_{job_uid_edit_admin_jd}")
+                    city_jd_edit = c2_edit.text_input("City", value=job_data_edit_admin_jd['ClientCity'], key=f"ej_city_{job_uid_edit_admin_jd}")
+                    s1_edit, s2_edit = st.columns(2)
+                    state_jd_edit = s1_edit.text_input("State", value=job_data_edit_admin_jd['ClientState'], key=f"ej_state_{job_uid_edit_admin_jd}")
+                    zip_jd_edit = s2_edit.text_input("Zip Code", value=job_data_edit_admin_jd['ClientZip'], key=f"ej_zip_{job_uid_edit_admin_jd}")
+
+                    status_opts_ej = ["Planning", "In Progress", "On Hold", "Completed", "Cancelled"]
+                    status_idx_ej = status_opts_ej.index(job_data_edit_admin_jd['Status']) if job_data_edit_admin_jd['Status'] in status_opts_ej else 0
+                    edit_status_val = st.selectbox("Status", status_opts_ej, index=status_idx_ej, key=f"ej_status_{job_uid_edit_admin_jd}")
+
+                    sdate_ej_val = pd.to_datetime(job_data_edit_admin_jd['Start Date'], errors='coerce').date() if pd.notna(job_data_edit_admin_jd['Start Date']) else None
+                    edate_ej_val = pd.to_datetime(job_data_edit_admin_jd['End Date'], errors='coerce').date() if pd.notna(job_data_edit_admin_jd['End Date']) else None
+                    edit_sdate_val = st.date_input("Start Date", value=sdate_ej_val, key=f"ej_sdate_{job_uid_edit_admin_jd}")
+                    edit_edate_val = st.date_input("End Date", value=edate_ej_val, key=f"ej_edate_{job_uid_edit_admin_jd}")
+
+                    edit_desc_val = st.text_area("Description", value=job_data_edit_admin_jd['Description'], key=f"ej_desc_{job_uid_edit_admin_jd}")
+                    edit_eh_val = st.number_input("Est. Hours", value=float(job_data_edit_admin_jd['Estimated Hours']), format="%.1f", key=f"ej_eh_{job_uid_edit_admin_jd}")
+                    edit_emc_val = st.number_input("Est. Mat. Cost ($)", value=float(job_data_edit_admin_jd['Estimated Materials Cost']), format="%.2f", key=f"ej_emc_{job_uid_edit_admin_jd}")
+
+                    save_col_ej_btn, del_col_ej_btn = st.columns(2)
+                    if save_col_ej_btn.form_submit_button("Save Changes"):
+                        if not edit_name_val or not edit_client_val: st.error("Job Name and Client are required.")
+                        else:
+                            idx_update_ej_q = jobs_df[jobs_df['UniqueID'] == job_uid_edit_admin_jd].index
+                            if not idx_update_ej_q.empty:
+                                jobs_df.loc[idx_update_ej_q[0], 'Job Name'] = edit_name_val.strip()
+                                jobs_df.loc[idx_update_ej_q[0], 'Client'] = edit_client_val.strip()
+                                jobs_df.loc[idx_update_ej_q[0], 'ClientAddress'] = address_jd_edit
+                                jobs_df.loc[idx_update_ej_q[0], 'ClientCity'] = city_jd_edit
+                                jobs_df.loc[idx_update_ej_q[0], 'ClientState'] = state_jd_edit
+                                jobs_df.loc[idx_update_ej_q[0], 'ClientZip'] = zip_jd_edit
+                                jobs_df.loc[idx_update_ej_q[0], 'Status'] = edit_status_val
+                                jobs_df.loc[idx_update_ej_q[0], 'Start Date'] = pd.to_datetime(edit_sdate_val,errors='coerce').date() if edit_sdate_val else None
+                                jobs_df.loc[idx_update_ej_q[0], 'End Date'] = pd.to_datetime(edit_edate_val,errors='coerce').date() if edit_edate_val else None
+                                jobs_df.loc[idx_update_ej_q[0], 'Description'] = edit_desc_val.strip()
+                                jobs_df.loc[idx_update_ej_q[0], 'Estimated Hours'] = edit_eh_val
+                                jobs_df.loc[idx_update_ej_q[0], 'Estimated Materials Cost'] = edit_emc_val
+                                save_data(jobs_df, 'jobs')
+                                jobs_df = load_data('jobs'); st.success(f"Job '{edit_name_val}' updated!"); st.rerun()
+                            else: st.error("Job not found for update. Refresh.")
+                    if del_col_ej_btn.form_submit_button("Delete Job", type="primary"):
+                        st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"] = True
+
+                if st.session_state.get(f"confirm_del_job_f_{job_uid_edit_admin_jd}", False):
+                    st.warning(f"Delete job: **{job_data_edit_admin_jd['Job Name']}** and ALL its associated data (time, materials, receipts, files)? This cannot be undone.")
+                    cd1, cd2 = st.columns(2)
+                    if cd1.button("YES, DELETE JOB AND ALL DATA", key=f"del_job_yes_btn_{job_uid_edit_admin_jd}"):
+                        jobs_df_new = jobs_df[jobs_df['UniqueID'] != job_uid_edit_admin_jd]
+                        job_time_df_new = job_time_df[job_time_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        materials_df_new = materials_df[materials_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        receipts_df_new = receipts_df[receipts_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        down_payments_df_new = down_payments_df[down_payments_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        job_files_df_new = job_files_df[job_files_df['JobUniqueID'] != job_uid_edit_admin_jd]
+                        
+                        save_data(jobs_df_new, 'jobs'); save_data(job_time_df_new, 'job_time')
+                        save_data(materials_df_new, 'materials'); save_data(receipts_df_new, 'receipts')
+                        save_data(down_payments_df_new, 'down_payments'); save_data(job_files_df_new, 'job_files')
+
+                        jobs_df = load_data('jobs'); job_time_df = load_data('job_time'); materials_df = load_data('materials')
+                        receipts_df = load_data('receipts'); down_payments_df = load_data('down_payments'); job_files_df = load_data('job_files')
+                        
+                        del st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"]
+                        st.success(f"Job '{job_to_edit_select_admin_jd}' and related data deleted."); st.rerun()
+                    if cd2.button("CANCEL JOB DELETION", key=f"del_job_no_btn_{job_uid_edit_admin_jd}"):
+                        del st.session_state[f"confirm_del_job_f_{job_uid_edit_admin_jd}"]; st.rerun()
 elif section == 'Job Time Tracking':
     st.header("Job Time Tracking")
 
