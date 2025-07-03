@@ -202,14 +202,16 @@ def highlight_job_deadlines(row):
     today = datetime.date.today()
     end_date_val = row.get('End Date')
 
-    # Ensure end_date_val is a valid date object before proceeding
+    # First, ensure end_date_val is a valid date object
     if pd.notna(end_date_val) and not isinstance(end_date_val, datetime.date):
         try:
+            # Try to convert it to a date
             end_date_val = pd.to_datetime(end_date_val).date()
         except:
-            end_date_val = None # Set to None if conversion fails
+            # If conversion fails, treat it as blank
+            end_date_val = None
 
-    # Only perform subtraction if end_date_val is a valid date and status is 'In Progress'
+    # This is the crucial check: only do the calculation if end_date_val is a real date
     if isinstance(end_date_val, datetime.date) and row.get('Status') == 'In Progress':
         delta = (end_date_val - today).days
         if delta <= 3:
