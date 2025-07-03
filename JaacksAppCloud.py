@@ -201,14 +201,22 @@ def highlight_job_deadlines(row):
     style = [''] * len(row)
     today = datetime.date.today()
     end_date_val = row.get('End Date')
-    if pd.notna(end_date_val) and not isinstance(end_date_val, datetime.date):
-        try: end_date_val = pd.to_datetime(end_date_val).date()
-        except: end_date_val = None
 
-    if end_date_val and isinstance(end_date_val, datetime.date) and row.get('Status') == 'In Progress':
+    # Ensure end_date_val is a valid date object before proceeding
+    if pd.notna(end_date_val) and not isinstance(end_date_val, datetime.date):
+        try:
+            end_date_val = pd.to_datetime(end_date_val).date()
+        except:
+            end_date_val = None # Set to None if conversion fails
+
+    # Only perform subtraction if end_date_val is a valid date and status is 'In Progress'
+    if isinstance(end_date_val, datetime.date) and row.get('Status') == 'In Progress':
         delta = (end_date_val - today).days
-        if delta <= 3: style = ['background-color: #FF0000; color: black;'] * len(row)
-        elif delta <= 7: style = ['background-color: #A2FF8A; color: black;'] * len(row)
+        if delta <= 3:
+            style = ['background-color: #FF0000; color: black;'] * len(row)
+        elif delta <= 7:
+            style = ['background-color: #A2FF8A; color: black;'] * len(row)
+            
     return style
 
 def display_paginated_dataframe(df_in, page_key, page_size=10, col_config=None, trunc_map=None, styler_fn=None):
