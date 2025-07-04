@@ -298,10 +298,11 @@ class PDF(FPDF):
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
         client_address_formatted = (
-            f"{client_data['Client']}\n"
-            f"{client_data['ClientAddress']}\n"
-            f"{client_data['ClientCity']}, {client_data['ClientState']} {client_data['ClientZip']}"
-        )
+            client_address_formatted = (
+                f"{client_data.get('Client', 'N/A')}\n"
+                f"{client_data.get('ClientAddress', '')}\n"
+                f"{client_data.get('ClientCity', '')}, {client_data.get('ClientState', '')} {client_data.get('ClientZip', '')}"
+        ).strip()
         self.set_font(self.font_family, 'B', 11)
         self.multi_cell(90, line_height, "BILL TO / CLIENT:", 0, 'L')
         self.set_font(self.font_family, '', 10)
