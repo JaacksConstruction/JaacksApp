@@ -1587,7 +1587,7 @@ elif section == 'Invoice Generation':
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
                     # ... (all your PDF building logic: add_page, sections, tables) ...
                     
-                    pdf_output_bytes = pdf_gen_doc.output(dest='S').encode('latin-1')
+                    pdf_output_bytes = pdf_gen_doc.output()
                     pdf_final_filename = f"{doc_number_input_ig}.pdf"
                     
                     class DummyFile:
