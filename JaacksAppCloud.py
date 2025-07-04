@@ -88,8 +88,13 @@ drive_service, sheets_service = get_google_apis()
 
 @st.cache_data(ttl="5m")
 def load_data(worksheet_name):
-    """Loads a worksheet from Google Sheets into a DataFrame, ensuring columns exist."""
+    """
+    Loads a worksheet from Google Sheets into a DataFrame.
+    If the sheet or columns don't exist, it creates a proper empty DataFrame.
+    If an existing sheet is missing columns, it adds them.
+    """
     try:
+        # This dictionary is the single source of truth for your data structure
         sheet_columns = {
             'jobs': ['Job Name', 'Client', 'Status', 'Start Date', 'End Date', 'Description', 'Estimated Hours', 'Estimated Materials Cost', 'UniqueID', 'ClientAddress', 'ClientCity', 'ClientState', 'ClientZip'],
             'job_time': ['Contractor', 'Client', 'Job', 'Date', 'Start Time', 'End Time', 'Time Duration (Hours)', 'UniqueID', 'JobUniqueID'],
@@ -97,7 +102,9 @@ def load_data(worksheet_name):
             'receipts': ['Contractor Name', 'Client Name', 'Job Name', 'Payor', 'Amount', 'File Name', 'File Path', 'Upload Date', 'UniqueID', 'JobUniqueID'],
             'users': ['Username', 'PasswordHash', 'Salt', 'Role', 'FirstName', 'Surname', 'AssociatedClientName', 'UserUniqueID'],
             'down_payments': ['DownPaymentID', 'JobUniqueID', 'DateReceived', 'Amount', 'PaymentMethod', 'Notes'],
-            'job_files': ['FileID', 'JobUniqueID', 'FileName', 'RelativePath', 'Category', 'UploadDate', 'UploadedByUsername']
+            'job_files': ['FileID', 'JobUniqueID', 'FileName', 'RelativePath', 'Category', 'UploadDate', 'UploadedByUsername'],
+            'invoices': ['DocNumber', 'JobUniqueID', 'DateGenerated'],
+            'estimates': ['DocNumber', 'JobUniqueID', 'DateGenerated']
         }
         
         expected_cols = sheet_columns.get(worksheet_name)
@@ -105,26 +112,36 @@ def load_data(worksheet_name):
             st.error(f"Column definition not found for worksheet: {worksheet_name}")
             return pd.DataFrame(columns=[])
 
-        sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
-        data = sheet.get_all_records()
-        
+        try:
+            sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
+            data = sheet.get_all_records()
+        except gspread.exceptions.WorksheetNotFound:
+            # If the worksheet doesn't exist, return a proper empty DataFrame
+            st.warning(f"Worksheet '{worksheet_name}' not found. An empty table will be used.")
+            return pd.DataFrame(columns=expected_cols)
+
         if not data:
             return pd.DataFrame(columns=expected_cols)
         
         df = pd.DataFrame(data)
         
+        # Add any missing columns and save back to the sheet
+        made_changes = False
         for col in expected_cols:
             if col not in df.columns:
                 df[col] = ''
+                made_changes = True
+        
+        if made_changes:
+            save_data(df, worksheet_name) # This will create the new columns in the sheet
         
         df = df[expected_cols]
-        
-        # More robust date handling
+
+        # Continue with your type conversions...
         date_cols = [col for col in df.columns if "date" in col.lower()]
         for col in date_cols:
             df[col] = pd.to_datetime(df[col], errors='coerce')
 
-        # Other type conversions
         for col in df.columns:
             if col not in date_cols:
                 if "cost" in col.lower() or "amount" in col.lower() or "hours" in col.lower():
@@ -132,22 +149,9 @@ def load_data(worksheet_name):
                 else:
                     df[col] = df[col].astype(str).replace(['nan', 'None', 'NONE', '<NA>', 'NaT'], '')
         return df
-    except gspread.exceptions.WorksheetNotFound:
-        st.error(f"Worksheet '{worksheet_name}' not found. Please create it in your Google Sheet.")
-        return pd.DataFrame(columns=sheet_columns.get(worksheet_name, []))
     except Exception as e:
         st.error(f"Failed to load data from '{worksheet_name}': {e}")
         return pd.DataFrame(columns=sheet_columns.get(worksheet_name, []))
-
-def save_data(df_to_save, worksheet_name):
-    """Saves a DataFrame to a specified worksheet in Google Sheets."""
-    try:
-        sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
-        df_to_save_str = df_to_save.astype(str).replace(['nan', 'None', 'NONE', '<NA>', 'NaT'], '')
-        sheet.clear() # Clear the sheet before writing
-        sheet.update([df_to_save_str.columns.values.tolist()] + df_to_save_str.values.tolist(), value_input_option='USER_ENTERED')
-    except Exception as e:
-        st.error(f"Failed to save data to worksheet '{worksheet_name}': {e}")
 
 def upload_file_to_drive(file_object, file_name, parent_folder_id):
     """Uploads a file to a specific parent folder in Google Drive and returns the shareable link."""
