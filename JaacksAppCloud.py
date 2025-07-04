@@ -89,12 +89,9 @@ drive_service, sheets_service = get_google_apis()
 @st.cache_data(ttl="5m")
 def load_data(worksheet_name):
     """
-    Loads a worksheet from Google Sheets into a DataFrame.
-    If the sheet or columns don't exist, it creates a proper empty DataFrame.
-    If an existing sheet is missing columns, it adds them.
+    Loads a worksheet from Google Sheets into a DataFrame, ensuring columns exist.
     """
     try:
-        # This dictionary is the single source of truth for your data structure
         sheet_columns = {
             'jobs': ['Job Name', 'Client', 'Status', 'Start Date', 'End Date', 'Description', 'Estimated Hours', 'Estimated Materials Cost', 'UniqueID', 'ClientAddress', 'ClientCity', 'ClientState', 'ClientZip'],
             'job_time': ['Contractor', 'Client', 'Job', 'Date', 'Start Time', 'End Time', 'Time Duration (Hours)', 'UniqueID', 'JobUniqueID'],
@@ -116,7 +113,6 @@ def load_data(worksheet_name):
             sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
             data = sheet.get_all_records()
         except gspread.exceptions.WorksheetNotFound:
-            # If the worksheet doesn't exist, return a proper empty DataFrame
             st.warning(f"Worksheet '{worksheet_name}' not found. An empty table will be used.")
             return pd.DataFrame(columns=expected_cols)
 
@@ -125,7 +121,6 @@ def load_data(worksheet_name):
         
         df = pd.DataFrame(data)
         
-        # Add any missing columns and save back to the sheet
         made_changes = False
         for col in expected_cols:
             if col not in df.columns:
@@ -133,15 +128,17 @@ def load_data(worksheet_name):
                 made_changes = True
         
         if made_changes:
-            save_data(df, worksheet_name) # This will create the new columns in the sheet
+            save_data(df, worksheet_name)
         
         df = df[expected_cols]
 
-        # Continue with your type conversions...
+        # --- Type Conversions ---
+        # Convert all date-like columns to date objects, coercing errors
         date_cols = [col for col in df.columns if "date" in col.lower()]
         for col in date_cols:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
+        # Convert other columns
         for col in df.columns:
             if col not in date_cols:
                 if "cost" in col.lower() or "amount" in col.lower() or "hours" in col.lower():
@@ -152,6 +149,16 @@ def load_data(worksheet_name):
     except Exception as e:
         st.error(f"Failed to load data from '{worksheet_name}': {e}")
         return pd.DataFrame(columns=sheet_columns.get(worksheet_name, []))
+
+def save_data(df_to_save, worksheet_name):
+    """Saves a DataFrame to a specified worksheet in Google Sheets."""
+    try:
+        sheet = sheets_service.open_by_key(SPREADSHEET_KEY).worksheet(worksheet_name)
+        df_to_save_str = df_to_save.astype(str).replace(['nan', 'None', 'NONE', '<NA>', 'NaT'], '')
+        sheet.clear()
+        sheet.update([df_to_save_str.columns.values.tolist()] + df_to_save_str.values.tolist(), value_input_option='USER_ENTERED')
+    except Exception as e:
+        st.error(f"Failed to save data to worksheet '{worksheet_name}': {e}")
 
 def upload_file_to_drive(file_object, file_name, parent_folder_id):
     """Uploads a file to a specific parent folder in Google Drive and returns the shareable link."""
@@ -204,26 +211,18 @@ def highlight_job_deadlines(row):
     style = [''] * len(row)
     today = datetime.date.today()
     end_date_val = row.get('End Date')
-
-    # This block now handles all possible data types safely
-    try:
-        # Check if the value is a valid, non-null date
-        if pd.notna(end_date_val):
-            # Convert to a standard datetime object first
-            end_date_dt = pd.to_datetime(end_date_val)
-            # Then get just the date part for comparison
-            end_date_obj = end_date_dt.date()
-            
-            # Only do the calculation if it's a real date and the job is in progress
-            if isinstance(end_date_obj, datetime.date) and row.get('Status') == 'In Progress':
-                delta = (end_date_obj - today).days
-                if delta <= 3:
-                    style = ['background-color: #FF0000; color: black;'] * len(row)
-                elif delta <= 7:
-                    style = ['background-color: #A2FF8A; color: black;'] * len(row)
-    except (ValueError, TypeError):
-        # If any conversion or subtraction fails, do nothing and just return the default style
-        pass
+    
+    # This check ensures we only do math on actual date objects
+    if isinstance(end_date_val, datetime.date) and row.get('Status') == 'In Progress':
+        try:
+            delta = (end_date_val - today).days
+            if delta <= 3:
+                style = ['background-color: #FF0000; color: black;'] * len(row)
+            elif delta <= 7:
+                style = ['background-color: #A2FF8A; color: black;'] * len(row)
+        except TypeError:
+            # This will catch any lingering type errors, though the new load_data should prevent them
+            pass
             
     return style
 
@@ -246,7 +245,7 @@ def display_paginated_dataframe(df_in, page_key, page_size=10, col_config=None, 
     end_idx = start_idx + page_size
     df_to_show = df_disp.iloc[start_idx:end_idx]
 
-    if styler_fn:
+    if styler_fn and not df_to_show.empty:
         st.dataframe(df_to_show.style.apply(styler_fn, axis=1), column_config=col_config, use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_to_show, column_config=col_config, use_container_width=True, hide_index=True)
