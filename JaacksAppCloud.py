@@ -1527,11 +1527,13 @@ elif section == 'Invoice Generation':
         st.session_state.invoice_terms = st.text_area("Terms & Conditions (shared for all documents)", value=st.session_state.get("invoice_terms", "Payment due upon receipt."), key="ig_shared_terms_input", height=100)
         
         # --- Checkbox logic ---
+        # --- Checkbox logic ---
         st.markdown("---"); st.subheader("Line Items Configuration")
         auto_items_for_current_invoice_ig = []
         if selected_job_data_for_doc_ig is not None:
             job_details_for_items_ig = selected_job_data_for_doc_ig
             job_uid_for_items_ig = job_details_for_items_ig['UniqueID']
+
             st.markdown("##### Automatic Line Item Options")
             col_auto_opt1_ig, col_auto_opt2_ig = st.columns(2)
             with col_auto_opt1_ig:
@@ -1544,18 +1546,43 @@ elif section == 'Invoice Generation':
                 if cfg_inc_job_actual_time_total:
                     st.session_state.inv_actual_time_total_job_rate = st.number_input("Rate for Total Actual Time ($/hr)", value=st.session_state.get("inv_actual_time_total_job_rate", 50.0), min_value=0.0, key="ig_rate_input_actual_time")
                 cfg_inc_job_actual_mat_cost_total = st.checkbox("Job Total Actual Material Cost", key="ig_cfg_job_actual_mat_total")
+
             st.markdown("---"); st.markdown("##### Detailed Record Inclusion")
             cfg_inc_records_detailed_time = st.checkbox("Include Detailed Time Entries (per contractor)", key="ig_cfg_records_detailed_time")
             cfg_inc_records_detailed_materials = st.checkbox("Include Detailed Material Usage", key="ig_cfg_records_detailed_mats")
             cfg_inc_records_down_payments = st.checkbox("Include Down Payments for this Job", key="ig_cfg_records_down_payments")
 
-            if cfg_inc_job_est_mat_cost: auto_items_for_current_invoice_ig.append({'description': f"Job Estimated Material Cost: {job_details_for_items_ig['Job Name']}", 'quantity': 1.0, 'unit_price': float(job_details_for_items_ig['Estimated Materials Cost']), 'total': float(job_details_for_items_ig['Estimated Materials Cost']), 'source': 'auto'})
-            # ... and so on for all your checkbox logic ...
-
+            # --- THIS IS THE LOGIC THAT WAS MISSING ---
+            if cfg_inc_job_est_mat_cost:
+                val = float(job_details_for_items_ig['Estimated Materials Cost'])
+                auto_items_for_current_invoice_ig.append({'description': f"Job Estimated Material Cost: {job_details_for_items_ig['Job Name']}", 'quantity': 1.0, 'unit_price': val, 'total': val, 'source': 'auto'})
+            if cfg_inc_job_est_time:
+                hrs = float(job_details_for_items_ig['Estimated Hours']); rate = float(st.session_state.inv_est_time_job_rate)
+                auto_items_for_current_invoice_ig.append({'description': f"Job Estimated Time: {format_hours(hrs,1)} hrs @ {format_currency(rate)}/hr", 'quantity': hrs, 'unit_price': rate, 'total': hrs * rate, 'source': 'auto'})
+            if cfg_inc_job_actual_time_total:
+                actual_hrs = float(job_time_df[job_time_df['JobUniqueID'] == job_uid_for_items_ig]['Time Duration (Hours)'].sum()); rate = float(st.session_state.inv_actual_time_total_job_rate)
+                auto_items_for_current_invoice_ig.append({'description': f"Job Total Actual Time: {format_hours(actual_hrs,1)} hrs @ {format_currency(rate)}/hr", 'quantity': actual_hrs, 'unit_price': rate, 'total': actual_hrs * rate, 'source': 'auto'})
+            if cfg_inc_job_actual_mat_cost_total:
+                m_cost = float(materials_df[materials_df['JobUniqueID'] == job_uid_for_items_ig]['Amount'].sum()); r_cost = float(receipts_df[receipts_df['JobUniqueID'] == job_uid_for_items_ig]['Amount'].sum())
+                total_m_r_cost = m_cost + r_cost
+                auto_items_for_current_invoice_ig.append({'description': "Job Total Actual Material Cost (Usage & Receipts)", 'quantity': 1.0, 'unit_price': total_m_r_cost, 'total': total_m_r_cost, 'source': 'auto'})
+            if cfg_inc_records_detailed_time:
+                time_summary_ig = job_time_df[job_time_df['JobUniqueID'] == job_uid_for_items_ig].groupby('Contractor')['Time Duration (Hours)'].sum().reset_index()
+                for _, row_t_ig in time_summary_ig.iterrows():
+                    auto_items_for_current_invoice_ig.append({'description': f"Labor: {row_t_ig['Contractor']}", 'quantity': float(row_t_ig['Time Duration (Hours)']), 'unit_price': 50.0, 'total': float(row_t_ig['Time Duration (Hours)']) * 50.0, 'source': 'auto'})
+            if cfg_inc_records_detailed_materials:
+                mat_summary_ig = materials_df[materials_df['JobUniqueID'] == job_uid_for_items_ig].groupby('Material')['Amount'].sum().reset_index()
+                for _, row_m_ig in mat_summary_ig.iterrows():
+                    auto_items_for_current_invoice_ig.append({'description': f"Material: {row_m_ig['Material']}", 'quantity': 1.0, 'unit_price': float(row_m_ig['Amount']), 'total': float(row_m_ig['Amount']), 'source': 'auto'})
+            if cfg_inc_records_down_payments:
+                for _, row_dp_ig in down_payments_df[down_payments_df['JobUniqueID'] == job_uid_for_items_ig].iterrows():
+                    desc = f"Down Payment ({pd.to_datetime(row_dp_ig['DateReceived']).strftime('%Y-%m-%d')}, Ref: {str(row_dp_ig['DownPaymentID'])[:8]})"
+                    amt = -float(row_dp_ig['Amount'])
+                    auto_items_for_current_invoice_ig.append({'description': desc, 'quantity': 1.0, 'unit_price': amt, 'total': amt, 'source': 'auto'})
         else:
             st.info("Select a job to see automatic line item options.")
 
-        # Combine auto and manual items
+        # Combine auto-generated items with existing manual items
         manual_items_from_session_ig = [item for item in st.session_state.invoice_line_items if item.get('source') == 'manual']
         st.session_state.invoice_line_items = auto_items_for_current_invoice_ig + manual_items_from_session_ig
         if not st.session_state.invoice_line_items:
