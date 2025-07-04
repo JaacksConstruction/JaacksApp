@@ -1627,15 +1627,15 @@ elif section == 'Invoice Generation':
                     # --- Finalization and Validation ---
                     pdf_output_bytes = pdf_gen_doc.output()
 
-                    # NEW: Check if the PDF content is valid before proceeding
                     if pdf_output_bytes and isinstance(pdf_output_bytes, bytes):
+                        # This logic now only runs if the PDF is valid
                         pdf_final_filename = f"{doc_number_input_ig}.pdf"
                         
-                        # --- Upload to Drive and Save Record ---
                         class DummyFile:
                             def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
                             def getvalue(self): return self._content
                         dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
+                        
                         upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
 
                         if upload_link:
@@ -1653,10 +1653,11 @@ elif section == 'Invoice Generation':
                         else:
                             st.error("Failed to save PDF to Google Drive.")
 
+                        # The download button is now safely inside this block
                         st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
                     
                     else:
-                        # If PDF generation failed, show a specific error
+                        # This else block now ONLY shows the error
                         st.error("Failed to generate valid PDF content. The resulting file is empty.")
                     st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
     else:
