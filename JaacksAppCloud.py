@@ -335,19 +335,15 @@ class PDF(FPDF):
                     self.cell(col_widths[i], 7, h, 1, 0, 'C', True)
                 self.ln()
                 self.set_font(self.font_family, '', 9)
-
             y_before_row = self.get_y()
-            # Draw multi-line cell for description
             self.multi_cell(col_widths[0], 6, str(row[0]), border='LR', align='L')
             desc_height = self.get_y() - y_before_row
-            
-            # Go back to start of row to draw other cells
-            self.set_xy(self.l_margin + col_widths[0], y_before_row)
+            self.set_y(y_before_row)
+            self.set_x(self.l_margin + col_widths[0])
             for i in range(1, len(row)):
                 align = 'R'
                 self.cell(col_widths[i], desc_height, str(row[i]), border='R', align=align)
             self.ln(desc_height)
-        # Draw bottom border of the table
         self.cell(sum(col_widths), 0, '', 'T')
 
     def totals_section(self, subtotal, tax_label, tax_amount, grand_total):
@@ -360,18 +356,24 @@ class PDF(FPDF):
         self.cell(130, 8, "GRAND TOTAL:", 0, 0, 'R'); self.cell(40, 8, format_currency(grand_total), 1, 1, 'R', True); self.ln(10)
 
     def notes_terms_signatures(self, notes, terms, sig_h=20):
-        if self.get_y() + 70 > self.h - self.b_margin: self.add_page()
+        if self.get_y() + 70 > self.h - self.b_margin:
+            self.add_page()
+        
         self.set_font(self.font_family, 'B', 10)
         self.cell(0, 6, "Notes / Inscription:", 0, 1, 'L')
         self.set_font(self.font_family, '', 9)
         self.multi_cell(0, 5, notes if notes else "N/A", 0, 'L'); self.ln(3)
+        
         self.set_font(self.font_family, 'B', 10)
         self.cell(0, 6, "Terms & Conditions:", 0, 1, 'L')
         self.set_font(self.font_family, '', 9)
         self.multi_cell(0, 5, terms, 0, 'L'); self.ln(10)
+        
         y_for_signatures = self.h - self.b_margin - sig_h - 5
-        if self.get_y() > y_for_signatures: self.add_page()
+        if self.get_y() > y_for_signatures:
+            self.add_page()
         self.set_y(y_for_signatures)
+        
         self.set_font(self.font_family, '', 10)
         self.cell(80, sig_h, "Customer Signature:", "T", 0, 'L'); self.cell(30, sig_h, "", 0, 0); self.cell(80, sig_h, "Contractor Signature:", "T", 1, 'L')
 
