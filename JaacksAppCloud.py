@@ -63,7 +63,7 @@ DRIVE_FOLDER_ID_RECEIPTS = "15Z7OLMrZLa6fdu8Pue52FIoRW6CsZc5x"
 DRIVE_FOLDER_ID_JOB_FILES = "1L7Q1PpDQeg1rz6VEvO7krh9slMJwxL7T"
 DRIVE_FOLDER_ID_ESTIMATES_INVOICES = "1LCEuA0WOgJH0MYNSq13FeGZUesOjVa4K"
 SPREADSHEET_KEY = "1Ik_6-5NKLiJLeT_ZkT4nE1l-EjlqqX4Kdsxhd6fR5A8"
-LOGO_PATH = "C:\\Users\\RJ\\Desktop\\JC APP\\logo.jpg" # This remains a local path for PDF generation
+LOGO_PATH = "logo.jpg" # This remains a local path for PDF generation
 
 # Define the scopes for both APIs
 SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets']
