@@ -269,58 +269,45 @@ class PDF(FPDF):
         self.logo_path = logo_path
         self.set_auto_page_break(auto=True, margin=15)
         self.set_draw_color(200, 200, 200)
+        # We will use the standard, built-in "Arial" font to ensure reliability
         self.font_family = "Arial"
-        self.dejavu_regular_loaded = False
-        self.dejavu_bold_loaded = False
-        self.dejavu_italic_loaded = False
-
-        try:
-            # Assumes font files are in a directory FPDF can find
-            fname_regular = "DejaVuSansCondensed.ttf"
-            fname_bold = "DejaVuSansCondensed-Bold.ttf"
-            fname_italic = "DejaVuSansCondensed-Oblique.ttf"
-
-            self.add_font("DejaVu", "", fname=fname_regular, uni=True)
-            self.dejavu_regular_loaded = True
-            self.add_font("DejaVu", "B", fname=fname_bold, uni=True)
-            self.dejavu_bold_loaded = True
-            self.add_font("DejaVu", "I", fname=fname_italic, uni=True)
-            self.dejavu_italic_loaded = True
-
-            if self.dejavu_regular_loaded and self.dejavu_bold_loaded and self.dejavu_italic_loaded:
-                self.font_family = "DejaVu"
-            else:
-                self.font_family = "Arial"
-        except RuntimeError:
-            self.font_family = "Arial"
-            self.dejavu_regular_loaded = self.dejavu_bold_loaded = self.dejavu_italic_loaded = False
 
     def header(self):
-        # ... (Your header logic remains the same) ...
-        pass
+        try:
+            # Safely add logo if it exists
+            if self.logo_path and Path(self.logo_path).is_file():
+                self.image(self.logo_path, x=10, y=8, w=33)
+            
+            self.set_font(self.font_family, 'B', 16)
+            self.cell(0, 10, self.company_details.get("name", ""), 0, 1, 'C')
+            self.set_font(self.font_family, '', 9)
+            self.cell(0, 5, self.company_details.get("address", ""), 0, 1, 'C')
+            self.cell(0, 5, f"Phone: {self.company_details.get('phone','')} | Email: {self.company_details.get('email','')}", 0, 1, 'C')
+            self.ln(10)
+        except Exception as e:
+            st.warning(f"Could not generate PDF header: {e}")
 
     def footer(self):
         self.set_y(-15)
         self.set_font(self.font_family, 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-
+    
     def document_title_section(self, title, doc_num, issue_date):
-        # ... (Your document_title_section logic remains the same) ...
-        pass
+        self.set_font(self.font_family, 'B', 18)
+        self.cell(0, 10, title.upper(), 0, 0, 'R'); self.ln(6)
+        self.set_font(self.font_family, '', 10)
+        self.cell(0, 7, f"{title} #: {doc_num}", 0, 1, 'R')
+        self.cell(0, 7, f"Date: {issue_date.strftime('%B %d, %Y')}", 0, 1, 'R'); self.ln(7)
 
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
-
-        # Format the multi-line client address
+        
         client_address_formatted = (
             f"{client_data['Client']}\n"
             f"{client_data['ClientAddress']}\n"
             f"{client_data['ClientCity']}, {client_data['ClientState']} {client_data['ClientZip']}"
         )
-         # ... and further down ...
 
-
-        # BILL TO section
         self.set_font(self.font_family, 'B', 11)
         self.multi_cell(90, line_height, "BILL TO / CLIENT:", 0, 'L')
         self.set_font(self.font_family, '', 10)
@@ -330,27 +317,83 @@ class PDF(FPDF):
         bill_to_height = self.get_y() - y_start
         self.set_xy(x_start + 100, y_start)
 
-        # JOB DETAILS section
         self.set_font(self.font_family, 'B', 11)
         self.multi_cell(90, line_height, "JOB DETAILS:", 0, 'L')
         self.set_font(self.font_family, '', 10)
         self.set_xy(x_start + 100, self.get_y())
         self.multi_cell(90, line_height, f"Job: {job_data['Job Name']}\nDesc: {truncate_text(job_data['Description'], 150)}", 0, 'L')
+
         job_details_height = self.get_y() - y_start
-        self.set_y(y_start + max(bill_to_height, job_details_height) + 5)
-        self.ln(5)
+        self.set_y(y_start + max(bill_to_height, job_details_height) + 5); self.ln(5)
 
     def line_items_table(self, headers, data, col_widths):
-        # ... (Your line_items_table logic remains the same) ...
-        pass
+        self.set_font(self.font_family, 'B', 9)
+        self.set_fill_color(230, 230, 230)
+        for i, h in enumerate(headers): self.cell(col_widths[i], 7, h, 1, 0, 'C', True)
+        self.ln()
+        
+        self.set_font(self.font_family, '', 9)
+        self.set_fill_color(255, 255, 255)
+
+        for row_data_tuple in data:
+            cell_height = 6 
+            if self.get_y() + cell_height > self.page_break_trigger:
+                self.add_page()
+                self.set_font(self.font_family, 'B', 9)
+                self.set_fill_color(230, 230, 230)
+                for i, h in enumerate(headers): self.cell(col_widths[i], 7, h, 1, 0, 'C', True)
+                self.ln()
+                self.set_font(self.font_family, '', 9)
+
+            current_x_row = self.get_x()
+            current_y_row = self.get_y()
+            
+            # Use get_string_width to calculate height needed for description
+            desc_text = str(row_data_tuple[0])
+            lines = self.multi_cell(col_widths[0], 5, desc_text, border=0, align='L', split_only=True)
+            cell_height = len(lines) * 5 + 2 # 5 per line + padding
+
+            # Redraw border around all cells with calculated height
+            self.set_xy(current_x_row, current_y_row)
+            self.multi_cell(col_widths[0], 5, desc_text, border=1, align='L')
+            
+            x_offset = current_x_row + col_widths[0]
+            for i in range(1, len(row_data_tuple)):
+                self.set_xy(x_offset, current_y_row)
+                align = 'R'
+                self.cell(col_widths[i], cell_height, str(row_data_tuple[i]), border=1, align=align)
+                x_offset += col_widths[i]
+            self.set_y(current_y_row + cell_height)
 
     def totals_section(self, subtotal, tax_label, tax_amount, grand_total):
-        # ... (Your totals_section logic remains the same) ...
-        pass
+        self.ln(5)
+        self.set_font(self.font_family, '', 10)
+        self.cell(130, 7, "Subtotal:", 0, 0, 'R'); self.cell(40, 7, format_currency(subtotal), 1, 1, 'R')
+        self.cell(130, 7, f"{tax_label}:", 0, 0, 'R'); self.cell(40, 7, format_currency(tax_amount), 1, 1, 'R')
+        
+        self.set_font(self.font_family, 'B', 11)
+        self.set_fill_color(220, 220, 220)
+        self.cell(130, 8, "GRAND TOTAL:", 0, 0, 'R'); self.cell(40, 8, format_currency(grand_total), 1, 1, 'R', True); self.ln(10)
 
     def notes_terms_signatures(self, notes, terms, sig_h=20):
-        # ... (Your notes_terms_signatures logic remains the same) ...
-        pass
+        if self.get_y() + 70 > self.h - self.b_margin: self.add_page()
+        
+        self.set_font(self.font_family, 'B', 10)
+        self.cell(0, 6, "Notes / Inscription:", 0, 1, 'L')
+        self.set_font(self.font_family, '', 9)
+        self.multi_cell(0, 5, notes if notes else "N/A", 0, 'L'); self.ln(3)
+        
+        self.set_font(self.font_family, 'B', 10)
+        self.cell(0, 6, "Terms & Conditions:", 0, 1, 'L')
+        self.set_font(self.font_family, '', 9)
+        self.multi_cell(0, 5, terms, 0, 'L'); self.ln(10)
+        
+        y_for_signatures = self.h - self.b_margin - sig_h - 5
+        if self.get_y() > y_for_signatures: self.add_page()
+        self.set_y(y_for_signatures)
+        
+        self.set_font(self.font_family, '', 10)
+        self.cell(80, sig_h, "Customer Signature:", "T", 0, 'L'); self.cell(30, sig_h, "", 0, 0); self.cell(80, sig_h, "Contractor Signature:", "T", 1, 'L')
 
 # --- Initialize Session State ---
 default_session_states = {
