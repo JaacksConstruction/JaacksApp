@@ -1593,10 +1593,10 @@ elif section == 'Invoice Generation':
                         st.stop()
 
                      # This is the correct way to get the PDF data as bytes
-                     pdf_output_bytes = pdf_gen_doc.output()
+                    pdf_output_bytes = pdf_gen_doc.output()
 
                      # --- Upload to Drive and Save Record ---
-                     pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                    pdf_final_filename = f"{doc_number_input_ig}.pdf"
 
                      class DummyFile:
                          def __init__(self, content, name):
