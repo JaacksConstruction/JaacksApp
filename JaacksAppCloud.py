@@ -1588,36 +1588,36 @@ elif section == 'Invoice Generation':
                     # ... (all your PDF building logic: add_page, sections, tables) ...
                     
                     # Check if the PDF object was created correctly before proceeding
-if not hasattr(pdf_gen_doc, 'output'):
-    st.error("Failed to create a valid PDF object. Please check the app logs.")
-    st.stop()
+                    if not hasattr(pdf_gen_doc, 'output'):
+                        st.error("Failed to create a valid PDF object. Please check the app logs.")
+                        st.stop()
 
-# This is the correct way to get the PDF data as bytes
-pdf_output_bytes = pdf_gen_doc.output()
+                     # This is the correct way to get the PDF data as bytes
+                     pdf_output_bytes = pdf_gen_doc.output()
 
-# --- Upload to Drive and Save Record ---
-pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                     # --- Upload to Drive and Save Record ---
+                     pdf_final_filename = f"{doc_number_input_ig}.pdf"
 
-class DummyFile:
-    def __init__(self, content, name):
-        self._content = content
-        self.name = name
-        self.type = "application/pdf"
-    def getvalue(self):
-        return self._content
+                     class DummyFile:
+                         def __init__(self, content, name):
+                             self._content = content
+                             self.name = name
+                             self.type = "application/pdf"
+                         def getvalue(self):
+                             return self._content
 
-dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
-upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
+                     dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
+                     upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
 
-if upload_link:
-    # ... your logic to save the invoice/estimate record ...
-    st.success("Generated PDF saved to Google Drive.")
-    st.markdown(f"**[View Document in Drive]({upload_link})**")
-    st.cache_data.clear()
-else:
-    st.error("Failed to save PDF to Google Drive.")
+                     if upload_link:
+                         # ... your logic to save the invoice/estimate record ...
+                         st.success("Generated PDF saved to Google Drive.")
+                         st.markdown(f"**[View Document in Drive]({upload_link})**")
+                         st.cache_data.clear()
+                     else:
+                         st.error("Failed to save PDF to Google Drive.")
 
-st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
+                    st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
                     pdf_final_filename = f"{doc_number_input_ig}.pdf"
                     
                     class DummyFile:
