@@ -1589,6 +1589,7 @@ elif section == 'Invoice Generation':
             st.session_state.invoice_line_items = [{'description': '', 'quantity': 1.0, 'unit_price': 0.0, 'total': 0.0, 'source': 'manual'}]
 
         # --- Manual Line Item Management ---
+        # --- Manual Line Item Management ---
         st.markdown("---"); st.subheader("Document Line Items")
         li_h_cols_ig_disp = st.columns([4, 2, 2, 2, 1])
         with li_h_cols_ig_disp[0]: st.markdown("**Description**")
@@ -1598,10 +1599,13 @@ elif section == 'Invoice Generation':
         with li_h_cols_ig_disp[4]: st.markdown("**Action**")
 
         indices_to_delete_from_list_ig = []
+        # Loop through and display each line item
         for idx_li, item_li_ig in enumerate(st.session_state.invoice_line_items):
+            row_cols_display_ig = st.columns([4, 2, 2, 2, 1])
+
+            # If the item was added manually, make it editable
             if item_li_ig.get('source') == 'manual':
                 row_item_key_ig = f"li_manual_{idx_li}"
-                row_cols_display_ig = st.columns([4, 2, 2, 2, 1])
                 desc_input_val = row_cols_display_ig[0].text_input("desc", value=item_li_ig['description'], key=f"desc_{row_item_key_ig}", label_visibility="collapsed")
                 qty_input_val = row_cols_display_ig[1].number_input("qty", value=item_li_ig['quantity'], key=f"qty_{row_item_key_ig}", label_visibility="collapsed")
                 price_input_val = row_cols_display_ig[2].number_input("price", value=item_li_ig['unit_price'], format="%.2f", key=f"price_{row_item_key_ig}", label_visibility="collapsed")
@@ -1609,17 +1613,27 @@ elif section == 'Invoice Generation':
                 row_cols_display_ig[3].text_input("total", value=f"{current_total_val_ig:.2f}", disabled=True, key=f"total_{row_item_key_ig}", label_visibility="collapsed")
                 if row_cols_display_ig[4].button("🗑️", key=f"del_{row_item_key_ig}"):
                     indices_to_delete_from_list_ig.append(idx_li)
+                # Update the item in session state
                 st.session_state.invoice_line_items[idx_li] = {'description': desc_input_val, 'quantity': qty_input_val, 'unit_price': price_input_val, 'total': current_total_val_ig, 'source': 'manual'}
+            
+            # If the item was generated from a checkbox, display it as read-only text
+            else:
+                with row_cols_display_ig[0]: st.markdown(f"<div style='height: 38px; padding-top: 8px;'>{item_li_ig.get('description', '')}</div>", unsafe_allow_html=True)
+                with row_cols_display_ig[1]: st.markdown(f"<div style='text-align: right; height: 38px; padding-top: 8px;'>{format_hours(item_li_ig.get('quantity', 0), 2)}</div>", unsafe_allow_html=True)
+                with row_cols_display_ig[2]: st.markdown(f"<div style='text-align: right; height: 38px; padding-top: 8px;'>{format_currency(item_li_ig.get('unit_price', 0))}</div>", unsafe_allow_html=True)
+                with row_cols_display_ig[3]: st.markdown(f"<div style='text-align: right; height: 38px; padding-top: 8px;'>{format_currency(item_li_ig.get('total', 0))}</div>", unsafe_allow_html=True)
+                with row_cols_display_ig[4]: st.markdown("<div style='text-align: center; height: 38px; padding-top: 8px;'>Auto</div>", unsafe_allow_html=True)
 
+        # Logic to delete manual items
         if indices_to_delete_from_list_ig:
             for i_to_del in sorted(indices_to_delete_from_list_ig, reverse=True):
                 st.session_state.invoice_line_items.pop(i_to_del)
             st.rerun()
 
+        # Button to add new manual items
         if st.button("Add New Custom Line Item", key="ig_add_new_custom_item_btn"):
             st.session_state.invoice_line_items.append({'description': '', 'quantity': 1.0, 'unit_price': 0.0, 'total': 0.0, 'source': 'manual'})
             st.rerun()
-
         # --- Calculate and Display Totals ---
         final_subtotal_ig = sum(float(item.get('total',0.0)) for item in st.session_state.invoice_line_items)
         final_tax_amount_ig = final_subtotal_ig * (tax_rate_input_ig / 100)
