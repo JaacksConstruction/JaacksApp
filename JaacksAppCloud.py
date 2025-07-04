@@ -1584,56 +1584,55 @@ elif section == 'Invoice Generation':
                 st.error("Please select a valid Client and Job before generating the PDF.")
             else:
                 with st.spinner("Generating and uploading PDF..."):
+                    # --- PDF Building Logic ---
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
-                    # ... (all your PDF building logic: add_page, sections, tables) ...
+                    pdf_gen_doc.add_page()
+                    pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
+                    pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
                     
-                    # Check if the PDF object was created correctly before proceeding
-                    if not hasattr(pdf_gen_doc, 'output'):
-                        st.error("Failed to create a valid PDF object. Please check the app logs.")
-                        st.stop()
-
-                     # This is the correct way to get the PDF data as bytes
+                    pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
+                    pdf_line_col_widths = [95, 25, 35, 35]
+                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])]
+                                     for item in st.session_state.invoice_line_items if item.get('description','').strip()]
+                    
+                    pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
+                    pdf_gen_doc.totals_section(final_subtotal_ig, f"Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
+                    pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
+                    
+                    # --- Finalization and Validation ---
                     pdf_output_bytes = pdf_gen_doc.output()
 
-                     # --- Upload to Drive and Save Record ---
-                    pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                    # NEW: Check if the PDF content is valid before proceeding
+                    if pdf_output_bytes and isinstance(pdf_output_bytes, bytes):
+                        pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                        
+                        # --- Upload to Drive and Save Record ---
+                        class DummyFile:
+                            def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
+                            def getvalue(self): return self._content
+                        dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
+                        upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
 
-                    class DummyFile:
-                        def __init__(self, content, name):
-                            self._content = content
-                            self.name = name
-                            self.type = "application/pdf"
-                        def getvalue(self):
-                            return self._content
+                        if upload_link:
+                            new_doc_record = {'DocNumber': doc_number_input_ig, 'JobUniqueID': selected_job_data_for_doc_ig['UniqueID'], 'DateGenerated': datetime.date.today()}
+                            if doc_type_selected_ig == "Estimate":
+                                updated_df = pd.concat([estimates_df, pd.DataFrame([new_doc_record])], ignore_index=True)
+                                save_data(updated_df, 'estimates')
+                            else:
+                                updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
+                                save_data(updated_df, 'invoices')
+                            
+                            st.success("Generated PDF saved to Google Drive.")
+                            st.markdown(f"**[View Document in Drive]({upload_link})**")
+                            st.cache_data.clear()
+                        else:
+                            st.error("Failed to save PDF to Google Drive.")
 
-                    dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
-                    upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
-
-                    if upload_link:
-                        # ... your logic to save the invoice/estimate record ...
-                        st.success("Generated PDF saved to Google Drive.")
-                        st.markdown(f"**[View Document in Drive]({upload_link})**")
-                        st.cache_data.clear()
-                    else:
-                        st.error("Failed to save PDF to Google Drive.")
-
-                    st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
-                    pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                        st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
                     
-                    class DummyFile:
-                        def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
-                        def getvalue(self): return self._content
-                    dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
-                    upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
-                    
-                    if upload_link:
-                        # ... (logic to save invoice/estimate number) ...
-                        st.success("Generated PDF saved to Google Drive.")
-                        st.markdown(f"**[View Document in Drive]({upload_link})**")
-                        st.cache_data.clear()
                     else:
-                        st.error("Failed to save PDF to Google Drive.")
-
+                        # If PDF generation failed, show a specific error
+                        st.error("Failed to generate valid PDF content. The resulting file is empty.")
                     st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
     else:
         st.error("Access restricted to Admin or Manager for Invoice Generation.")
