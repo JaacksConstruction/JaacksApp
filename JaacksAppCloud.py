@@ -1502,7 +1502,12 @@ elif section == 'Invoice Generation':
             if not job_data_query_for_doc_ig.empty:
                 selected_job_data_for_doc_ig = job_data_query_for_doc_ig.iloc[0]
                 job_description_for_doc_pdf_ig = selected_job_data_for_doc_ig['Description']
-                full_address = f"{selected_job_data_for_doc_ig['ClientAddress']}, {selected_job_data_for_doc_ig['ClientCity']}, {selected_job_data_for_doc_ig['ClientState']} {selected_job_data_for_doc_ig['ClientZip']}"
+                full_address = (
+                    f"{selected_job_data_for_doc_ig.get('ClientAddress', '')}, "
+                    f"{selected_job_data_for_doc_ig.get('ClientCity', '')}, "
+                    f"{selected_job_data_for_doc_ig.get('ClientState', '')} "
+                    f"{selected_job_data_for_doc_ig.get('ClientZip', '')}"
+                )
                 st.text_input("Full Address", value=full_address.strip(', '), disabled=True, key="ig_client_address_auto")
         else:
             st.text_input("Full Address", value="Select a job to see client address", disabled=True)
