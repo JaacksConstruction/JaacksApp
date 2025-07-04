@@ -1544,8 +1544,13 @@ elif section == 'Invoice Generation':
                 if cfg_inc_job_actual_time_total:
                     st.session_state.inv_actual_time_total_job_rate = st.number_input("Rate for Total Actual Time ($/hr)", value=st.session_state.get("inv_actual_time_total_job_rate", 50.0), min_value=0.0, key="ig_rate_input_actual_time")
                 cfg_inc_job_actual_mat_cost_total = st.checkbox("Job Total Actual Material Cost", key="ig_cfg_job_actual_mat_total")
+            st.markdown("---"); st.markdown("##### Detailed Record Inclusion")
+            cfg_inc_records_detailed_time = st.checkbox("Include Detailed Time Entries (per contractor)", key="ig_cfg_records_detailed_time")
+            cfg_inc_records_detailed_materials = st.checkbox("Include Detailed Material Usage", key="ig_cfg_records_detailed_mats")
+            cfg_inc_records_down_payments = st.checkbox("Include Down Payments for this Job", key="ig_cfg_records_down_payments")
 
-            # ... (rest of checkbox logic to build auto_items_for_current_invoice_ig list) ...
+            if cfg_inc_job_est_mat_cost: auto_items_for_current_invoice_ig.append({'description': f"Job Estimated Material Cost: {job_details_for_items_ig['Job Name']}", 'quantity': 1.0, 'unit_price': float(job_details_for_items_ig['Estimated Materials Cost']), 'total': float(job_details_for_items_ig['Estimated Materials Cost']), 'source': 'auto'})
+            # ... and so on for all your checkbox logic ...
 
         else:
             st.info("Select a job to see automatic line item options.")
@@ -1566,24 +1571,17 @@ elif section == 'Invoice Generation':
         with li_h_cols_ig_disp[4]: st.markdown("**Action**")
 
         indices_to_delete_from_list_ig = []
-        # Loop through and display each line item
         for idx_li, item_li_ig in enumerate(st.session_state.invoice_line_items):
-            # Only draw editable fields for manual items
             if item_li_ig.get('source') == 'manual':
                 row_item_key_ig = f"li_manual_{idx_li}"
                 row_cols_display_ig = st.columns([4, 2, 2, 2, 1])
-
                 desc_input_val = row_cols_display_ig[0].text_input("desc", value=item_li_ig['description'], key=f"desc_{row_item_key_ig}", label_visibility="collapsed")
                 qty_input_val = row_cols_display_ig[1].number_input("qty", value=item_li_ig['quantity'], key=f"qty_{row_item_key_ig}", label_visibility="collapsed")
                 price_input_val = row_cols_display_ig[2].number_input("price", value=item_li_ig['unit_price'], format="%.2f", key=f"price_{row_item_key_ig}", label_visibility="collapsed")
-        
                 current_total_val_ig = qty_input_val * price_input_val
                 row_cols_display_ig[3].text_input("total", value=f"{current_total_val_ig:.2f}", disabled=True, key=f"total_{row_item_key_ig}", label_visibility="collapsed")
-        
                 if row_cols_display_ig[4].button("🗑️", key=f"del_{row_item_key_ig}"):
                     indices_to_delete_from_list_ig.append(idx_li)
-        
-                # Update the item in session state
                 st.session_state.invoice_line_items[idx_li] = {'description': desc_input_val, 'quantity': qty_input_val, 'unit_price': price_input_val, 'total': current_total_val_ig, 'source': 'manual'}
 
         if indices_to_delete_from_list_ig:
@@ -1599,6 +1597,7 @@ elif section == 'Invoice Generation':
         final_subtotal_ig = sum(float(item.get('total',0.0)) for item in st.session_state.invoice_line_items)
         final_tax_amount_ig = final_subtotal_ig * (tax_rate_input_ig / 100)
         final_grand_total_ig = final_subtotal_ig + final_tax_amount_ig
+        st.markdown("---")
         st.markdown(f"#### Subtotal: {format_currency(final_subtotal_ig)}")
         st.markdown(f"#### Tax ({tax_rate_input_ig}%): {format_currency(final_tax_amount_ig)}")
         st.markdown(f"### GRAND TOTAL: {format_currency(final_grand_total_ig)}")
@@ -1609,33 +1608,25 @@ elif section == 'Invoice Generation':
                 st.error("Please select a valid Client and Job before generating the PDF.")
             else:
                 with st.spinner("Generating and uploading PDF..."):
-                    # --- PDF Building Logic ---
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
                     pdf_gen_doc.add_page()
                     pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
                     pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
-                    
                     pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
                     pdf_line_col_widths = [95, 25, 35, 35]
-                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])]
-                                     for item in st.session_state.invoice_line_items if item.get('description','').strip()]
-                    
+                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])] for item in st.session_state.invoice_line_items if item.get('description','').strip()]
                     pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
                     pdf_gen_doc.totals_section(final_subtotal_ig, f"Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
                     pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
                     
-                    # --- Finalization and Validation ---
                     pdf_output_bytes = pdf_gen_doc.output()
 
                     if pdf_output_bytes and isinstance(pdf_output_bytes, bytes):
-                        # This logic now only runs if the PDF is valid
                         pdf_final_filename = f"{doc_number_input_ig}.pdf"
-                        
                         class DummyFile:
                             def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
                             def getvalue(self): return self._content
                         dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
-                        
                         upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
 
                         if upload_link:
@@ -1646,20 +1637,14 @@ elif section == 'Invoice Generation':
                             else:
                                 updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
                                 save_data(updated_df, 'invoices')
-                            
                             st.success("Generated PDF saved to Google Drive.")
                             st.markdown(f"**[View Document in Drive]({upload_link})**")
                             st.cache_data.clear()
                         else:
                             st.error("Failed to save PDF to Google Drive.")
-
-                        # The download button is now safely inside this block
                         st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
-                    
                     else:
-                        # This else block now ONLY shows the error
                         st.error("Failed to generate valid PDF content. The resulting file is empty.")
-                    st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
     else:
         st.error("Access restricted to Admin or Manager for Invoice Generation.")
 
