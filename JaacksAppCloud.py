@@ -298,7 +298,7 @@ class PDF(FPDF):
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
         client_address_formatted =(
-            client_address_formatted = (
+            #client_address_formatted = (
                 f"{client_data.get('Client', 'N/A')}\n"
                 f"{client_data.get('ClientAddress', '')}\n"
                 f"{client_data.get('ClientCity', '')}, {client_data.get('ClientState', '')} {client_data.get('ClientZip', '')}"
