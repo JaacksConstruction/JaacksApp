@@ -297,7 +297,7 @@ class PDF(FPDF):
 
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
-        client_address_formatted = (
+        client_address_formatted =(
             client_address_formatted = (
                 f"{client_data.get('Client', 'N/A')}\n"
                 f"{client_data.get('ClientAddress', '')}\n"
@@ -1507,7 +1507,7 @@ elif section == 'Invoice Generation':
                     f"{selected_job_data_for_doc_ig.get('ClientCity', '')}, "
                     f"{selected_job_data_for_doc_ig.get('ClientState', '')} "
                     f"{selected_job_data_for_doc_ig.get('ClientZip', '')}"
-                )
+                 )
                 st.text_input("Full Address", value=full_address.strip(', '), disabled=True, key="ig_client_address_auto")
         else:
             st.text_input("Full Address", value="Select a job to see client address", disabled=True)
