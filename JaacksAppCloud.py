@@ -1439,7 +1439,7 @@ elif section == 'Invoice Generation':
     if current_user_role_val in ['Admin', 'Manager']:
         st.subheader("Document Setup")
 
-        # Company Details in sidebar
+        # Company Details for PDF in sidebar
         st.sidebar.subheader("Company Details for PDF Document")
         st.sidebar.text_input("Company Name (PDF)", value=st.session_state.company_name_pdf, key="company_name_pdf")
         st.sidebar.text_input("Company Address (PDF)", value=st.session_state.company_address_pdf, key="company_address_pdf")
@@ -1447,8 +1447,10 @@ elif section == 'Invoice Generation':
         st.sidebar.text_input("Company Email (PDF)", value=st.session_state.company_email_pdf, key="company_email_pdf")
 
         company_details_for_pdf_doc_ig = {
-            "name": st.session_state.company_name_pdf, "address": st.session_state.company_address_pdf,
-            "phone": st.session_state.company_phone_pdf, "email": st.session_state.company_email_pdf
+            "name": st.session_state.company_name_pdf,
+            "address": st.session_state.company_address_pdf,
+            "phone": st.session_state.company_phone_pdf,
+            "email": st.session_state.company_email_pdf
         }
 
         doc_type_selected_ig = st.radio("Select Document Type:", ("Estimate", "Invoice"), key="ig_doc_type_radio", horizontal=True)
@@ -1466,8 +1468,9 @@ elif section == 'Invoice Generation':
                 jobs_available_for_doc_ig.extend(sorted(list(jobs_of_selected_client_ig['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
 
         selected_job_name_for_doc_ig = st.selectbox("Job:", jobs_available_for_doc_ig, key="ig_job_doc_select")
+        
+        # Auto-populate address and description when a job is selected
         job_description_for_doc_pdf_ig = "N/A"
-
         st.write("Client Address (auto-populated from Job Details)")
         if selected_job_name_for_doc_ig != "Select Job":
             job_data_query_for_doc_ig = jobs_df[jobs_df['Job Name'] == selected_job_name_for_doc_ig]
@@ -1479,7 +1482,7 @@ elif section == 'Invoice Generation':
         else:
             st.text_input("Full Address", value="Select a job to see client address", disabled=True)
 
-        # Document Details with Sequential Numbering
+        # Document details with Sequential Numbering
         doc_prefix_for_num_ig = "EST" if doc_type_selected_ig == "Estimate" else "INV"
         last_num = 499
         if doc_type_selected_ig == "Estimate" and not estimates_df.empty and 'DocNumber' in estimates_df.columns:
@@ -1494,49 +1497,82 @@ elif section == 'Invoice Generation':
         doc_date_input_ig = st.date_input(f"{doc_type_selected_ig} Date*", value=datetime.date.today(), key="ig_doc_date_input")
         tax_rate_input_ig = st.number_input("Tax Rate (%)", min_value=0.0, value=st.session_state.get("ig_tax_rate_val", 2.041), step=0.001, format="%.3f", key="ig_tax_rate_input")
         st.session_state.ig_tax_rate_val = tax_rate_input_ig
-        doc_notes_input_ig = st.text_area(f"{doc_type_selected_ig} Notes", value=f"This {doc_type_selected_ig.lower()} outlines the scope and costs.", height=100)
-        st.session_state.invoice_terms = st.text_area("Terms & Conditions", value=st.session_state.get("invoice_terms", "Payment due upon receipt."), height=100)
-
-        # --- Checkbox logic ---
-        # ... your checkbox logic ...
+        default_notes_text_ig = f"This {doc_type_selected_ig.lower()} outlines the scope and costs." if doc_type_selected_ig == "Estimate" else "Thank you for your business! Payment is due upon receipt."
+        doc_notes_input_ig = st.text_area(f"{doc_type_selected_ig} Notes", value=default_notes_text_ig, key="ig_doc_notes_input", height=100)
+        st.session_state.invoice_terms = st.text_area("Terms & Conditions (shared for all documents)", value=st.session_state.get("invoice_terms", "Payment due upon receipt."), key="ig_shared_terms_input", height=100)
         
+        # --- Checkbox logic ---
+        st.markdown("---"); st.subheader("Line Items Configuration")
+        auto_items_for_current_invoice_ig = []
+        if selected_job_data_for_doc_ig is not None:
+            job_details_for_items_ig = selected_job_data_for_doc_ig
+            job_uid_for_items_ig = job_details_for_items_ig['UniqueID']
+            st.markdown("##### Automatic Line Item Options")
+            col_auto_opt1_ig, col_auto_opt2_ig = st.columns(2)
+            with col_auto_opt1_ig:
+                cfg_inc_job_est_mat_cost = st.checkbox("Job Estimated Material Cost", key="ig_cfg_job_est_mat")
+                cfg_inc_job_est_time = st.checkbox("Job Estimated Time (Hours)", key="ig_cfg_job_est_time")
+                if cfg_inc_job_est_time:
+                    st.session_state.inv_est_time_job_rate = st.number_input("Rate for Est. Time ($/hr)", value=st.session_state.get("inv_est_time_job_rate", 50.0), min_value=0.0, key="ig_rate_input_est_time")
+            with col_auto_opt2_ig:
+                cfg_inc_job_actual_time_total = st.checkbox("Job Total Actual Time (Hours)", key="ig_cfg_job_actual_time")
+                if cfg_inc_job_actual_time_total:
+                    st.session_state.inv_actual_time_total_job_rate = st.number_input("Rate for Total Actual Time ($/hr)", value=st.session_state.get("inv_actual_time_total_job_rate", 50.0), min_value=0.0, key="ig_rate_input_actual_time")
+                cfg_inc_job_actual_mat_cost_total = st.checkbox("Job Total Actual Material Cost", key="ig_cfg_job_actual_mat_total")
+
+            # ... (rest of checkbox logic to build auto_items_for_current_invoice_ig list) ...
+
+        else:
+            st.info("Select a job to see automatic line item options.")
+
+        # Combine auto and manual items
+        manual_items_from_session_ig = [item for item in st.session_state.invoice_line_items if item.get('source') == 'manual']
+        st.session_state.invoice_line_items = auto_items_for_current_invoice_ig + manual_items_from_session_ig
+        if not st.session_state.invoice_line_items:
+            st.session_state.invoice_line_items = [{'description': '', 'quantity': 1.0, 'unit_price': 0.0, 'total': 0.0, 'source': 'manual'}]
+
         # --- Manual Line Item Management ---
         st.markdown("---"); st.subheader("Document Line Items")
-        # ... your manual line item logic ...
+        li_h_cols_ig_disp = st.columns([4, 2, 2, 2, 1])
+        # ... (headers for the line item table) ...
+
+        indices_to_delete_from_list_ig = []
+        for idx_li, item_li_ig in enumerate(st.session_state.invoice_line_items):
+            # ... (your for loop to display each editable line item) ...
+            pass # Placeholder for your existing for loop
 
         if st.button("Add New Custom Line Item", key="ig_add_new_custom_item_btn"):
             st.session_state.invoice_line_items.append({'description': '', 'quantity': 1.0, 'unit_price': 0.0, 'total': 0.0, 'source': 'manual'})
             st.rerun()
 
-        # --- Calculate Totals & Generate PDF ---
-        # ... your totals calculation ...
+        # --- Calculate and Display Totals ---
+        final_subtotal_ig = sum(float(item.get('total',0.0)) for item in st.session_state.invoice_line_items)
+        final_tax_amount_ig = final_subtotal_ig * (tax_rate_input_ig / 100)
+        final_grand_total_ig = final_subtotal_ig + final_tax_amount_ig
+        st.markdown(f"#### Subtotal: {format_currency(final_subtotal_ig)}")
+        st.markdown(f"#### Tax ({tax_rate_input_ig}%): {format_currency(final_tax_amount_ig)}")
+        st.markdown(f"### GRAND TOTAL: {format_currency(final_grand_total_ig)}")
 
+        # --- PDF Generation Button ---
         if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
             if selected_job_data_for_doc_ig is None:
-                st.error("Please select a valid Client and Job.")
+                st.error("Please select a valid Client and Job before generating the PDF.")
             else:
                 with st.spinner("Generating and uploading PDF..."):
-                    # --- PDF Building Logic ---
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
-                    # ... add pages, sections, tables ...
+                    # ... (all your PDF building logic: add_page, sections, tables) ...
+                    
                     pdf_output_bytes = pdf_gen_doc.output(dest='S').encode('latin-1')
                     pdf_final_filename = f"{doc_number_input_ig}.pdf"
-
-                    # --- Upload to Drive and Save Record ---
+                    
                     class DummyFile:
                         def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
                         def getvalue(self): return self._content
                     dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
                     upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
-
+                    
                     if upload_link:
-                        new_doc_record = {'DocNumber': doc_number_input_ig, 'JobUniqueID': selected_job_data_for_doc_ig['UniqueID'], 'DateGenerated': datetime.date.today()}
-                        if doc_type_selected_ig == "Estimate":
-                            updated_df = pd.concat([estimates_df, pd.DataFrame([new_doc_record])], ignore_index=True)
-                            save_data(updated_df, 'estimates')
-                        else:
-                            updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
-                            save_data(updated_df, 'invoices')
+                        # ... (logic to save invoice/estimate number) ...
                         st.success("Generated PDF saved to Google Drive.")
                         st.markdown(f"**[View Document in Drive]({upload_link})**")
                         st.cache_data.clear()
@@ -1545,7 +1581,8 @@ elif section == 'Invoice Generation':
 
                     st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
     else:
-        st.error("Access restricted to Admin or Manager.")
+        st.error("Access restricted to Admin or Manager for Invoice Generation.")
+
         
 elif section == 'Reports & Analytics':
     st.header("Reports & Analytics")
