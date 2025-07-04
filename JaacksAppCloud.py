@@ -846,21 +846,21 @@ elif section == 'Job Details':
                         st.error("Job Name, Client, and Status are required.")
                     else:
                         new_job_rec = {
-    'Job Name': job_name_jd_new.strip(), 
-    'Client': client_jd_new.strip(), 
-    'Status': status_jd_new,
-    'Start Date': pd.to_datetime(start_date_jd_new, errors='coerce').date() if start_date_jd_new else None,
-    'End Date': pd.to_datetime(end_date_jd_new, errors='coerce').date() if end_date_jd_new else None,
-    'Description': description_jd_new.strip(), 
-    'Estimated Hours': est_hours_jd_new,
-    'Estimated Materials Cost': est_mat_cost_jd_new, 
-    'UniqueID': uuid.uuid4().hex,
+                            'Job Name': job_name_jd_new.strip(), 
+                            'Client': client_jd_new.strip(), 
+                            'Status': status_jd_new,
+                            'Start Date': pd.to_datetime(start_date_jd_new, errors='coerce').date() if start_date_jd_new else None,
+                            'End Date': pd.to_datetime(end_date_jd_new, errors='coerce').date() if end_date_jd_new else None,
+                            'Description': description_jd_new.strip(), 
+                            'Estimated Hours': est_hours_jd_new,
+                            'Estimated Materials Cost': est_mat_cost_jd_new, 
+                            'UniqueID': uuid.uuid4().hex,
     
-    # This part was missing the correct values
-    'ClientAddress': address_jd_new, 
-    'ClientCity': city_jd_new,
-    'ClientState': state_jd_new, 
-    'ClientZip': zip_jd_new
+                            # This part was missing the correct values
+                            'ClientAddress': address_jd_new, 
+                            'ClientCity': city_jd_new,
+                            'ClientState': state_jd_new, 
+                            'ClientZip': zip_jd_new
 }
 
 updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
