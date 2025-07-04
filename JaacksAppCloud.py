@@ -861,13 +861,13 @@ elif section == 'Job Details':
                             'ClientCity': city_jd_new,
                             'ClientState': state_jd_new, 
                             'ClientZip': zip_jd_new
-}
+                        }
 
-updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
-save_data(updated_jobs_df, 'jobs')
-st.success(f"Job '{job_name_jd_new}' added!")
-st.cache_data.clear()
-st.rerun()
+                        updated_jobs_df = pd.concat([jobs_df, pd.DataFrame([new_job_rec])], ignore_index=True)
+                        save_data(updated_jobs_df, 'jobs')
+                        st.success(f"Job '{job_name_jd_new}' added!")
+                        st.cache_data.clear()
+                        st.rerun()
         st.markdown("---")
 
     st.subheader("Existing Jobs")
