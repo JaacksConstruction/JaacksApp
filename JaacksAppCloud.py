@@ -1657,7 +1657,7 @@ elif section == 'Invoice Generation':
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
                     pdf_gen_doc.add_page()
                     pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
-                    #pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
+                    pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
                     pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
                     pdf_line_col_widths = [95, 25, 35, 35]
                     pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])] for item in st.session_state.invoice_line_items if item.get('description','').strip()]
@@ -1847,4 +1847,5 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
