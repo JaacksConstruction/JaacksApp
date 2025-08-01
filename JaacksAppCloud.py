@@ -275,9 +275,9 @@ class PDF(FPDF):
             if self.logo_path and Path(self.logo_path).is_file():
                 self.image(self.logo_path, x=10, y=8, w=33)
             self.set_font(self.font_family, 'B', 16)
-            self.cell(0, 10, self.company_details.get("name", ""), 0, 1, 'C')
+            self.cell(0, 10, str(self.company_details.get("name", "")), 0, 1, 'C')
             self.set_font(self.font_family, '', 9)
-            self.cell(0, 5, self.company_details.get("address", ""), 0, 1, 'C')
+            self.cell(0, 5, str(self.company_details.get("address", "")), 0, 1, 'C')
             self.cell(0, 5, f"Phone: {self.company_details.get('phone','')} | Email: {self.company_details.get('email','')}", 0, 1, 'C')
             self.ln(10)
         except Exception as e:
@@ -290,34 +290,45 @@ class PDF(FPDF):
 
     def document_title_section(self, title, doc_num, issue_date):
         self.set_font(self.font_family, 'B', 18)
-        self.cell(0, 10, title.upper(), 0, 0, 'R'); self.ln(6)
+        self.cell(0, 10, str(title).upper(), 0, 0, 'R'); self.ln(6)
         self.set_font(self.font_family, '', 10)
         self.cell(0, 7, f"{title} #: {doc_num}", 0, 1, 'R')
         self.cell(0, 7, f"Date: {issue_date.strftime('%B %d, %Y')}", 0, 1, 'R'); self.ln(7)
 
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
-        client_address_formatted =(
-            #client_address_formatted = (
-                f"{client_data.get('Client', 'N/A')}\n"
-                f"{client_data.get('ClientAddress', '')}\n"
-                f"{client_data.get('ClientCity', '')}, {client_data.get('ClientState', '')} {client_data.get('ClientZip', '')}"
+        
+        # Safely get and format the address, ensuring all parts are strings
+        client_address = str(client_data.get('ClientAddress', ''))
+        client_city = str(client_data.get('ClientCity', ''))
+        client_state = str(client_data.get('ClientState', ''))
+        client_zip = str(client_data.get('ClientZip', ''))
+        
+        client_address_formatted = (
+            f"{str(client_data.get('Client', 'N/A'))}\n"
+            f"{client_address}\n"
+            f"{client_city}, {client_state} {client_zip}"
         ).strip()
+
         self.set_font(self.font_family, 'B', 11)
         self.multi_cell(90, line_height, "BILL TO / CLIENT:", 0, 'L')
         self.set_font(self.font_family, '', 10)
         self.set_xy(x_start, self.get_y())
-        self.multi_cell(90, line_height, client_address_formatted.strip(), 0, 'L')
+        self.multi_cell(90, line_height, client_address_formatted, 0, 'L')
+        
         bill_to_height = self.get_y() - y_start
         self.set_xy(x_start + 100, y_start)
+        
         self.set_font(self.font_family, 'B', 11)
         self.multi_cell(90, line_height, "JOB DETAILS:", 0, 'L')
         self.set_font(self.font_family, '', 10)
         self.set_xy(x_start + 100, self.get_y())
-        self.multi_cell(90, line_height, f"Job: {job_data['Job Name']}\nDesc: {truncate_text(job_data['Description'], 150)}", 0, 'L')
+        self.multi_cell(90, line_height, f"Job: {str(job_data.get('Job Name', 'N/A'))}\nDesc: {truncate_text(str(job_data.get('Description', 'N/A')), 150)}", 0, 'L')
+        
         job_details_height = self.get_y() - y_start
         self.set_y(y_start + max(bill_to_height, job_details_height) + 5); self.ln(5)
 
+    
     def line_items_table(self, headers, data, col_widths):
         self.set_font(self.font_family, 'B', 9)
         self.set_fill_color(230, 230, 230)
@@ -1847,5 +1858,6 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
