@@ -14,6 +14,14 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from fpdf import FPDF
 from pathlib import Path
+# --- NEW PDF HELPER FUNCTIONS (using ReportLab) ---
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+
 
 # --- Page Config ---
 st.set_page_config(page_title='JC Construction Tracker', layout='wide')
@@ -262,14 +270,7 @@ def display_paginated_dataframe(df_in, page_key, page_size=10, col_config=None, 
 
 # --- PDF Class (No changes needed, it uses a local path) ---
 class PDF(FPDF):
-    # --- NEW PDF HELPER FUNCTIONS (using ReportLab) ---
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-
+    
 def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_details):
     """Generates a complete invoice or estimate PDF using ReportLab and returns it as bytes."""
     try:
@@ -1852,6 +1853,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
