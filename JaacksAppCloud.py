@@ -273,15 +273,15 @@ class PDF(FPDF):
 
     def header(self):
         try:
-            if self.logo_path and Path(self.logo_path).is_file():
-                self.image(self.logo_path, x=10, y=8, w=33)
+            #if self.logo_path and Path(self.logo_path).is_file():
+            #    self.image(self.logo_path, x=10, y=8, w=33)
             
-            self.set_font(self.font_family, 'B', 16)
-            self.cell(0, 10, str(self.company_details.get("name", "")), 0, 1, 'C')
-            self.set_font(self.font_family, '', 9)
-            self.cell(0, 5, str(self.company_details.get("address", "")), 0, 1, 'C')
-            self.cell(0, 5, f"Phone: {self.company_details.get('phone','')} | Email: {self.company_details.get('email','')}", 0, 1, 'C')
-            self.ln(10)
+            #self.set_font(self.font_family, 'B', 16)
+            #self.cell(0, 10, str(self.company_details.get("name", "")), 0, 1, 'C')
+            #self.set_font(self.font_family, '', 9)
+            #self.cell(0, 5, str(self.company_details.get("address", "")), 0, 1, 'C')
+            #self.cell(0, 5, f"Phone: {self.company_details.get('phone','')} | Email: {self.company_details.get('email','')}", 0, 1, 'C')
+            #self.ln(10)
         except Exception as e:
             st.warning(f"Could not generate PDF header: {e}")
 
@@ -1841,6 +1841,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
