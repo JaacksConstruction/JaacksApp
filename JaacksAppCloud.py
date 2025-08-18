@@ -262,16 +262,149 @@ def display_paginated_dataframe(df_in, page_key, page_size=10, col_config=None, 
 
 # --- PDF Class (No changes needed, it uses a local path) ---
 class PDF(FPDF):
-    def header(self):
-        # This is a hardcoded header that uses no external data
-        self.set_font("Arial", 'B', 16)
-        self.cell(0, 10, 'Test Document Header', 0, 1, 'C')
-        self.ln(10)
+    # --- NEW PDF HELPER FUNCTIONS (using ReportLab) ---
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Arial", 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_details):
+    """Generates a complete invoice or estimate PDF using ReportLab and returns it as bytes."""
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        styles = getSampleStyleSheet()
+        
+        Story = []
+
+        # --- Header ---
+        if LOGO_PATH and Path(LOGO_PATH).is_file():
+            # You can add logo logic here if needed, but it's complex with ReportLab.
+            # For now, we will use text only to ensure it works.
+            pass
+        Story.append(Paragraph(company_details.get("name", "JC Construction"), styles['h1']))
+        Story.append(Paragraph(company_details.get("address", "123 Main St"), styles['Normal']))
+        Story.append(Paragraph(f"Phone: {company_details.get('phone','')} | Email: {company_details.get('email','')}", styles['Normal']))
+        Story.append(Spacer(1, 0.25*inch))
+
+        # --- Document Title ---
+        Story.append(Paragraph(f"<b>{doc_details['type']} #{doc_details['number']}</b>", styles['h2']))
+        Story.append(Paragraph(f"Date: {doc_details['date'].strftime('%B %d, %Y')}", styles['Normal']))
+        Story.append(Spacer(1, 0.25*inch))
+        
+        # --- Client and Job Info ---
+        client_address_formatted = (
+            f"{job_data.get('Client', 'N/A')}<br/>"
+            f"{job_data.get('ClientAddress', '')}<br/>"
+            f"{job_data.get('ClientCity', '')}, {job_data.get('ClientState', '')} {job_data.get('ClientZip', '')}"
+        ).strip()
+        job_info_formatted = (
+            f"<b>Job:</b> {job_data.get('Job Name', 'N/A')}<br/>"
+            f"<b>Desc:</b> {truncate_text(job_data.get('Description', 'N/A'), 150)}"
+        )
+        info_table_data = [[Paragraph("<b>BILL TO:</b>", styles['Normal']), Paragraph("<b>JOB DETAILS:</b>", styles['Normal'])],
+                           [Paragraph(client_address_formatted, styles['Normal']), Paragraph(job_info_formatted, styles['Normal'])]]
+        info_table = Table(info_table_data, colWidths=[3*inch, 3*inch])
+        Story.append(info_table)
+        Story.append(Spacer(1, 0.25*inch))
+
+        # --- Line Items Table ---
+        table_data = [['Description', 'Quantity', 'Unit Price', 'Total']]
+        for item in line_items:
+            table_data.append([
+                Paragraph(item['description'], styles['Normal']),
+                format_hours(item['quantity'], 2),
+                format_currency(item['unit_price']),
+                format_currency(item['total'])
+            ])
+        
+        line_item_table = Table(table_data, colWidths=[3.5*inch, 1*inch, 1*inch, 1*inch])
+        line_item_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('ALIGN', (0,1), (0,-1), 'LEFT'), # Align description to the left
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 12),
+            ('BACKGROUND', (0,1), (-1,-1), colors.beige),
+            ('GRID', (0,0), (-1,-1), 1, colors.black)
+        ]))
+        Story.append(line_item_table)
+        Story.append(Spacer(1, 0.2*inch))
+
+        # --- Totals ---
+        totals_data = [
+            ['Subtotal:', format_currency(totals['subtotal'])],
+            [f"Tax ({totals['tax_rate']}%):", format_currency(totals['tax_amount'])],
+            [Paragraph('<b>GRAND TOTAL:</b>', styles['Normal']), Paragraph(f"<b>{format_currency(totals['grand_total'])}</b>", styles['Normal'])]
+        ]
+        totals_table = Table(totals_data, colWidths=[5.5*inch, 1*inch])
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+        ]))
+        Story.append(totals_table)
+        Story.append(Spacer(1, 0.25*inch))
+        
+        # --- Notes and Terms ---
+        Story.append(Paragraph("<b>Notes:</b>", styles['h3']))
+        Story.append(Paragraph(doc_details['notes'], styles['Normal']))
+        Story.append(Spacer(1, 0.2*inch))
+        Story.append(Paragraph("<b>Terms & Conditions:</b>", styles['h3']))
+        Story.append(Paragraph(doc_details['terms'], styles['Normal']))
+
+        doc.build(Story)
+        buffer.seek(0)
+        return buffer.getvalue()
+    except Exception as e:
+        st.error(f"Failed to generate PDF with ReportLab: {e}")
+        return None
+
+# Replace your entire 'Invoice Generation' elif block with this
+elif section == 'Invoice Generation':
+    st.header("Invoice Generation")
+    if current_user_role_val in ['Admin', 'Manager']:
+        # --- (Your setup code for Company Details, Client/Job Selection, Address, etc. remains the same) ---
+        
+        # --- Line Item & Totals Calculation (remains mostly the same) ---
+        
+        # --- PDF Generation Button ---
+        if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
+            if selected_job_data_for_doc_ig is None:
+                st.error("Please select a valid Client and Job before generating the PDF.")
+            else:
+                with st.spinner("Generating PDF with new library..."):
+                    # Prepare data for the new PDF function
+                    company_details = {
+                        "name": st.session_state.company_name_pdf, "address": st.session_state.company_address_pdf,
+                        "phone": st.session_state.company_phone_pdf, "email": st.session_state.company_email_pdf
+                    }
+                    doc_details = {
+                        "type": doc_type_selected_ig, "number": doc_number_input_ig,
+                        "date": doc_date_input_ig, "notes": doc_notes_input_ig,
+                        "terms": st.session_state.invoice_terms
+                    }
+                    line_items = [item for item in st.session_state.invoice_line_items if item.get('description','').strip()]
+                    totals = {
+                        "subtotal": final_subtotal_ig, "tax_rate": tax_rate_input_ig,
+                        "tax_amount": final_tax_amount_ig, "grand_total": final_grand_total_ig
+                    }
+
+                    # Call the new PDF generation function
+                    pdf_output_bytes = generate_pdf_bytes(company_details, selected_job_data_for_doc_ig, line_items, totals, doc_details)
+                    
+                    if pdf_output_bytes:
+                        pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                        st.success("PDF Generated Successfully!")
+                        
+                        # --- (Your logic to upload to Drive and save the record number remains the same) ---
+                        
+                        st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
+                    else:
+                        st.error("PDF generation failed. Please check the logs.")
+    else:
+        st.error("Access restricted to Admin or Manager.")
 # --- Initialize Session State ---
 default_session_states = {
     "logged_in_user": None, "authentication_status": False, "current_page_users": 0,
@@ -1719,6 +1852,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
