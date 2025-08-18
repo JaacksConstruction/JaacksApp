@@ -269,8 +269,7 @@ def display_paginated_dataframe(df_in, page_key, page_size=10, col_config=None, 
             st.rerun()
 
 # --- PDF Class (No changes needed, it uses a local path) ---
-class PDF(FPDF):
-    
+# --- NEW PDF HELPER FUNCTION (using ReportLab) ---
 def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_details):
     """Generates a complete invoice or estimate PDF using ReportLab and returns it as bytes."""
     try:
@@ -281,12 +280,8 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
         Story = []
 
         # --- Header ---
-        if LOGO_PATH and Path(LOGO_PATH).is_file():
-            # You can add logo logic here if needed, but it's complex with ReportLab.
-            # For now, we will use text only to ensure it works.
-            pass
-        Story.append(Paragraph(company_details.get("name", "JC Construction"), styles['h1']))
-        Story.append(Paragraph(company_details.get("address", "123 Main St"), styles['Normal']))
+        Story.append(Paragraph(str(company_details.get("name", "JC Construction")), styles['h1']))
+        Story.append(Paragraph(str(company_details.get("address", "123 Main St")), styles['Normal']))
         Story.append(Paragraph(f"Phone: {company_details.get('phone','')} | Email: {company_details.get('email','')}", styles['Normal']))
         Story.append(Spacer(1, 0.25*inch))
 
@@ -297,13 +292,13 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
         
         # --- Client and Job Info ---
         client_address_formatted = (
-            f"{job_data.get('Client', 'N/A')}<br/>"
-            f"{job_data.get('ClientAddress', '')}<br/>"
-            f"{job_data.get('ClientCity', '')}, {job_data.get('ClientState', '')} {job_data.get('ClientZip', '')}"
+            f"{str(job_data.get('Client', 'N/A'))}<br/>"
+            f"{str(job_data.get('ClientAddress', ''))}<br/>"
+            f"{str(job_data.get('ClientCity', ''))}, {str(job_data.get('ClientState', ''))} {str(job_data.get('ClientZip', ''))}"
         ).strip()
         job_info_formatted = (
-            f"<b>Job:</b> {job_data.get('Job Name', 'N/A')}<br/>"
-            f"<b>Desc:</b> {truncate_text(job_data.get('Description', 'N/A'), 150)}"
+            f"<b>Job:</b> {str(job_data.get('Job Name', 'N/A'))}<br/>"
+            f"<b>Desc:</b> {truncate_text(str(job_data.get('Description', 'N/A')), 150)}"
         )
         info_table_data = [[Paragraph("<b>BILL TO:</b>", styles['Normal']), Paragraph("<b>JOB DETAILS:</b>", styles['Normal'])],
                            [Paragraph(client_address_formatted, styles['Normal']), Paragraph(job_info_formatted, styles['Normal'])]]
@@ -315,7 +310,7 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
         table_data = [['Description', 'Quantity', 'Unit Price', 'Total']]
         for item in line_items:
             table_data.append([
-                Paragraph(item['description'], styles['Normal']),
+                Paragraph(str(item['description']), styles['Normal']),
                 format_hours(item['quantity'], 2),
                 format_currency(item['unit_price']),
                 format_currency(item['total'])
@@ -326,11 +321,12 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
             ('BACKGROUND', (0,0), (-1,0), colors.grey),
             ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('ALIGN', (0,1), (0,-1), 'LEFT'), # Align description to the left
+            ('ALIGN', (0,1), (0,-1), 'LEFT'),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('BOTTOMPADDING', (0,0), (-1,0), 12),
             ('BACKGROUND', (0,1), (-1,-1), colors.beige),
-            ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ]))
         Story.append(line_item_table)
         Story.append(Spacer(1, 0.2*inch))
@@ -342,18 +338,16 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
             [Paragraph('<b>GRAND TOTAL:</b>', styles['Normal']), Paragraph(f"<b>{format_currency(totals['grand_total'])}</b>", styles['Normal'])]
         ]
         totals_table = Table(totals_data, colWidths=[5.5*inch, 1*inch])
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
-        ]))
+        totals_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
         Story.append(totals_table)
         Story.append(Spacer(1, 0.25*inch))
         
         # --- Notes and Terms ---
         Story.append(Paragraph("<b>Notes:</b>", styles['h3']))
-        Story.append(Paragraph(doc_details['notes'], styles['Normal']))
+        Story.append(Paragraph(str(doc_details['notes']), styles['Normal']))
         Story.append(Spacer(1, 0.2*inch))
         Story.append(Paragraph("<b>Terms & Conditions:</b>", styles['h3']))
-        Story.append(Paragraph(doc_details['terms'], styles['Normal']))
+        Story.append(Paragraph(str(doc_details['terms']), styles['Normal']))
 
         doc.build(Story)
         buffer.seek(0)
@@ -362,50 +356,107 @@ def generate_pdf_bytes(company_details, job_data, line_items, totals, doc_detail
         st.error(f"Failed to generate PDF with ReportLab: {e}")
         return None
 
-# Replace your entire 'Invoice Generation' elif block with this
 elif section == 'Invoice Generation':
     st.header("Invoice Generation")
     if current_user_role_val in ['Admin', 'Manager']:
-        # --- (Your setup code for Company Details, Client/Job Selection, Address, etc. remains the same) ---
+        st.subheader("Document Setup")
+
+        st.sidebar.subheader("Company Details for PDF Document")
+        st.sidebar.text_input("Company Name (PDF)", value=st.session_state.company_name_pdf, key="company_name_pdf")
+        st.sidebar.text_input("Company Address (PDF)", value=st.session_state.company_address_pdf, key="company_address_pdf")
+        st.sidebar.text_input("Company Phone (PDF)", value=st.session_state.company_phone_pdf, key="company_phone_pdf")
+        st.sidebar.text_input("Company Email (PDF)", value=st.session_state.company_email_pdf, key="company_email_pdf")
+
+        company_details_for_pdf_doc_ig = { "name": st.session_state.company_name_pdf, "address": st.session_state.company_address_pdf, "phone": st.session_state.company_phone_pdf, "email": st.session_state.company_email_pdf }
+        doc_type_selected_ig = st.radio("Select Document Type:", ("Estimate", "Invoice"), key="ig_doc_type_radio", horizontal=True)
+
+        clients_available_ig = ["Select Client"] + (sorted(list(jobs_df['Client'].astype(str).str.strip().replace('',np.nan).dropna().unique())) if not jobs_df.empty else [])
+        selected_client_for_doc_ig = st.selectbox("Client:", clients_available_ig, key="ig_client_doc_select")
+
+        jobs_available_for_doc_ig = ["Select Job"]
+        selected_job_data_for_doc_ig = None
+        if selected_client_for_doc_ig != "Select Client" and not jobs_df.empty:
+            jobs_of_selected_client_ig = jobs_df[jobs_df['Client'].astype(str).str.strip() == selected_client_for_doc_ig.strip()]
+            if not jobs_of_selected_client_ig.empty:
+                jobs_available_for_doc_ig.extend(sorted(list(jobs_of_selected_client_ig['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique())))
+        selected_job_name_for_doc_ig = st.selectbox("Job:", jobs_available_for_doc_ig, key="ig_job_doc_select")
+
+        st.write("Client Address (auto-populated from Job Details)")
+        if selected_job_name_for_doc_ig != "Select Job":
+            job_data_query_for_doc_ig = jobs_df[jobs_df['Job Name'] == selected_job_name_for_doc_ig]
+            if not job_data_query_for_doc_ig.empty:
+                selected_job_data_for_doc_ig = job_data_query_for_doc_ig.iloc[0]
+                full_address = f"{selected_job_data_for_doc_ig.get('ClientAddress', '')}, {selected_job_data_for_doc_ig.get('ClientCity', '')}, {selected_job_data_for_doc_ig.get('ClientState', '')} {selected_job_data_for_doc_ig.get('ClientZip', '')}"
+                st.text_input("Full Address", value=full_address.strip(', '), disabled=True, key="ig_client_address_auto")
+        else:
+            st.text_input("Full Address", value="Select a job to see client address", disabled=True)
+            
+        doc_prefix_for_num_ig = "EST" if doc_type_selected_ig == "Estimate" else "INV"
+        last_num = 499
+        if doc_type_selected_ig == "Estimate" and not estimates_df.empty and 'DocNumber' in estimates_df.columns:
+            numeric_est_nums = pd.to_numeric(estimates_df['DocNumber'].str.replace('EST-', '', regex=False), errors='coerce').dropna()
+            if not numeric_est_nums.empty: last_num = numeric_est_nums.max()
+        elif doc_type_selected_ig == "Invoice" and not invoices_df.empty and 'DocNumber' in invoices_df.columns:
+            numeric_inv_nums = pd.to_numeric(invoices_df['DocNumber'].str.replace('INV-', '', regex=False), errors='coerce').dropna()
+            if not numeric_inv_nums.empty: last_num = numeric_inv_nums.max()
         
-        # --- Line Item & Totals Calculation (remains mostly the same) ---
+        next_doc_num = int(last_num) + 1
+        doc_number_input_ig = st.text_input(f"{doc_type_selected_ig} Number*", value=f"{doc_prefix_for_num_ig}-{next_doc_num}", key="ig_doc_number_input")
+        doc_date_input_ig = st.date_input(f"{doc_type_selected_ig} Date*", value=datetime.date.today(), key="ig_doc_date_input")
+        tax_rate_input_ig = st.number_input("Tax Rate (%)", min_value=0.0, value=st.session_state.get("ig_tax_rate_val", 2.041), step=0.001, format="%.3f", key="ig_tax_rate_input")
+        st.session_state.ig_tax_rate_val = tax_rate_input_ig
+        doc_notes_input_ig = st.text_area(f"{doc_type_selected_ig} Notes", height=100)
+        st.session_state.invoice_terms = st.text_area("Terms & Conditions", value=st.session_state.get("invoice_terms", "Payment due upon receipt."), height=100)
         
-        # --- PDF Generation Button ---
+        # --- Your checkbox and line item logic here ---
+        
+        # --- Calculate and Display Totals ---
+        final_subtotal_ig = sum(float(item.get('total',0.0)) for item in st.session_state.invoice_line_items)
+        final_tax_amount_ig = final_subtotal_ig * (tax_rate_input_ig / 100)
+        final_grand_total_ig = final_subtotal_ig + final_tax_amount_ig
+        st.markdown("---")
+        st.markdown(f"#### Subtotal: {format_currency(final_subtotal_ig)}")
+        st.markdown(f"#### Tax ({tax_rate_input_ig}%): {format_currency(final_tax_amount_ig)}")
+        st.markdown(f"### GRAND TOTAL: {format_currency(final_grand_total_ig)}")
+
         if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
             if selected_job_data_for_doc_ig is None:
                 st.error("Please select a valid Client and Job before generating the PDF.")
             else:
-                with st.spinner("Generating PDF with new library..."):
-                    # Prepare data for the new PDF function
-                    company_details = {
-                        "name": st.session_state.company_name_pdf, "address": st.session_state.company_address_pdf,
-                        "phone": st.session_state.company_phone_pdf, "email": st.session_state.company_email_pdf
-                    }
-                    doc_details = {
-                        "type": doc_type_selected_ig, "number": doc_number_input_ig,
-                        "date": doc_date_input_ig, "notes": doc_notes_input_ig,
-                        "terms": st.session_state.invoice_terms
-                    }
+                with st.spinner("Generating PDF..."):
+                    doc_details = {"type": doc_type_selected_ig, "number": doc_number_input_ig, "date": doc_date_input_ig, "notes": doc_notes_input_ig, "terms": st.session_state.invoice_terms}
                     line_items = [item for item in st.session_state.invoice_line_items if item.get('description','').strip()]
-                    totals = {
-                        "subtotal": final_subtotal_ig, "tax_rate": tax_rate_input_ig,
-                        "tax_amount": final_tax_amount_ig, "grand_total": final_grand_total_ig
-                    }
+                    totals = {"subtotal": final_subtotal_ig, "tax_rate": tax_rate_input_ig, "tax_amount": final_tax_amount_ig, "grand_total": final_grand_total_ig}
 
-                    # Call the new PDF generation function
-                    pdf_output_bytes = generate_pdf_bytes(company_details, selected_job_data_for_doc_ig, line_items, totals, doc_details)
+                    pdf_output_bytes = generate_pdf_bytes(company_details_for_pdf_doc_ig, selected_job_data_for_doc_ig, line_items, totals, doc_details)
                     
                     if pdf_output_bytes:
                         pdf_final_filename = f"{doc_number_input_ig}.pdf"
                         st.success("PDF Generated Successfully!")
                         
-                        # --- (Your logic to upload to Drive and save the record number remains the same) ---
+                        class DummyFile:
+                            def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
+                            def getvalue(self): return self._content
+                        dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
+                        upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
+                        
+                        if upload_link:
+                            new_doc_record = {'DocNumber': doc_number_input_ig, 'JobUniqueID': selected_job_data_for_doc_ig['UniqueID'], 'DateGenerated': datetime.date.today()}
+                            if doc_type_selected_ig == "Estimate":
+                                updated_df = pd.concat([estimates_df, pd.DataFrame([new_doc_record])], ignore_index=True)
+                                save_data(updated_df, 'estimates')
+                            else:
+                                updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
+                                save_data(updated_df, 'invoices')
+                            st.success("Generated PDF saved to Google Drive.")
+                            st.markdown(f"**[View Document in Drive]({upload_link})**")
+                            st.cache_data.clear()
+                        else:
+                            st.error("Failed to save PDF to Google Drive.")
                         
                         st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
-                    else:
-                        st.error("PDF generation failed. Please check the logs.")
     else:
-        st.error("Access restricted to Admin or Manager.")
+        st.error("Access restricted to Admin or Manager for Invoice Generation.")
 # --- Initialize Session State ---
 default_session_states = {
     "logged_in_user": None, "authentication_status": False, "current_page_users": 0,
@@ -1853,6 +1904,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
