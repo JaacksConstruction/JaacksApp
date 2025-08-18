@@ -1454,11 +1454,10 @@ elif section == 'Down Payments Log':
 elif section == 'Job File Uploads':
     st.header("Job File Uploads")
 
-    # --- Job and Client Selection for Context ---
     job_file_jobs_filter_df_jfu = jobs_df.copy()
     if current_user_role_val == 'Client Viewer' and associated_client_name_val:
-        job_file_jobs_filter_df_jfu = job_file_jobs_filter_df_jfu[job_file_jobs_filter_df_jfu['Client'].astype(str).strip() == associated_client_name_val.strip()]
-
+        job_file_jobs_filter_df_jfu = job_file_jobs_filter_df_jfu[job_file_jobs_filter_df_jfu['Client'].astype(str).str.strip() == associated_client_name_val.strip()]
+    
     job_options_jfu_select = ["Select Job to View/Upload Files"] + sorted(list(job_file_jobs_filter_df_jfu['Job Name'].astype(str).str.strip().replace('',np.nan).dropna().unique()))
     selected_job_jfu_context = st.selectbox("Select Job:", options=job_options_jfu_select, key="jfu_job_context_select")
 
@@ -1474,7 +1473,6 @@ elif section == 'Job File Uploads':
     else:
         st.text_input("Client Name (Will auto-fill after job selection)", value="", disabled=True, key="jfu_client_context_placeholder")
 
-    # --- File Upload Form ---
     if current_user_role_val in ['Admin', 'Manager', 'Contractor']:
         if selected_job_jfu_context != "Select Job to View/Upload Files" and job_uid_jfu_context:
             st.subheader(f"Upload New File for: {selected_job_jfu_context}")
@@ -1496,31 +1494,25 @@ elif section == 'Job File Uploads':
                                     'FileID': uuid.uuid4().hex,
                                     'JobUniqueID': job_uid_jfu_context,
                                     'FileName': uploaded_job_file_data.name,
-                                    'RelativePath': upload_link, # Store the Drive link
+                                    'RelativePath': upload_link,
                                     'Category': file_category_jfu_form,
                                     'UploadDate': datetime.datetime.now().isoformat(),
                                     'UploadedByUsername': current_username_val
                                 }
                                 updated_job_files_df = pd.concat([job_files_df, pd.DataFrame([new_job_file_record])], ignore_index=True)
                                 save_data(updated_job_files_df, 'job_files')
-                                job_files_df = load_data('job_files')
                                 st.success(f"File '{uploaded_job_file_data.name}' uploaded successfully!")
+                                st.cache_data.clear()
                                 st.rerun()
                             else:
                                 st.error("Failed to upload file to Google Drive.")
         elif selected_job_jfu_context == "Select Job to View/Upload Files":
             st.info("Select a job above to enable file uploading for that job.")
-
-    # --- Display Existing Job Files ---
+    
     st.markdown("---"); st.subheader("Existing Job Files")
     if selected_job_jfu_context != "Select Job to View/Upload Files" and job_uid_jfu_context:
         job_files_to_display_jfu = job_files_df[job_files_df['JobUniqueID'] == job_uid_jfu_context].copy()
-
         if not job_files_to_display_jfu.empty:
-            job_files_to_display_jfu['Job Name'] = selected_job_jfu_context
-            job_files_to_display_jfu['Client'] = client_name_jfu_context
-            display_cols_jfu_list = ['FileName', 'Category', 'UploadDate', 'UploadedByUsername']
-
             st.write(f"Files for job: **{selected_job_jfu_context}** (Client: {client_name_jfu_context})")
             display_paginated_dataframe(job_files_to_display_jfu.sort_values(by="UploadDate", ascending=False),
                                         f"jfu_files_for_job_{job_uid_jfu_context}", 5,
@@ -1904,6 +1896,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
