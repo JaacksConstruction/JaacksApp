@@ -1657,64 +1657,33 @@ elif section == 'Invoice Generation':
         st.markdown(f"### GRAND TOTAL: {format_currency(final_grand_total_ig)}")
 
         # --- PDF Generation Button ---
-        if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
+        if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn_DEBUG", type="primary"):
             if selected_job_data_for_doc_ig is None:
                 st.error("Please select a valid Client and Job before generating the PDF.")
-            elif not any(str(item.get('description','')).strip() for item in st.session_state.invoice_line_items):
-                st.error("Cannot generate PDF. Please add at least one line item with a description.")
             else:
-                with st.spinner("Generating and uploading PDF..."):
-                    # --- PDF Building Logic ---
+                with st.spinner("DEBUGGING PDF GENERATION..."):
+                    # --- Create the simplest possible PDF ---
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
                     pdf_gen_doc.add_page()
-                    pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
-                    pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
-                    
-                    pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
-                    pdf_line_col_widths = [95, 25, 35, 35]
-                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])]
-                                     for item in st.session_state.invoice_line_items if item.get('description','').strip()]
-                    
-                    pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
-                    pdf_gen_doc.totals_section(final_subtotal_ig, f"Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
-                    pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
+                    pdf_gen_doc.set_font("Arial", 'B', 16)
+                    pdf_gen_doc.cell(40, 10, 'This is a test.')
+
+                    # --- All your normal content sections are temporarily disabled ---
+                    # pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
+                    # pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
+                    # pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])] for item in st.session_state.invoice_line_items if item.get('description','').strip()]
+                    # pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
+                    # pdf_gen_doc.totals_section(final_subtotal_ig, f"Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
+                    # pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
                     
                     # --- Finalization and Validation ---
                     pdf_output_bytes = pdf_gen_doc.output()
 
                     if pdf_output_bytes and isinstance(pdf_output_bytes, bytes):
-                        pdf_final_filename = f"{doc_number_input_ig}.pdf"
-                        
-                        class DummyFile:
-                            def __init__(self, content, name):
-                                self._content = content
-                                self.name = name
-                                self.type = "application/pdf"
-                            def getvalue(self):
-                                return self._content
-
-                        dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
-                        upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
-
-                        if upload_link:
-                            new_doc_record = {'DocNumber': doc_number_input_ig, 'JobUniqueID': selected_job_data_for_doc_ig['UniqueID'], 'DateGenerated': datetime.date.today()}
-                            if doc_type_selected_ig == "Estimate":
-                                updated_df = pd.concat([estimates_df, pd.DataFrame([new_doc_record])], ignore_index=True)
-                                save_data(updated_df, 'estimates')
-                            else:
-                                updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
-                                save_data(updated_df, 'invoices')
-                            
-                            st.success("Generated PDF saved to Google Drive.")
-                            st.markdown(f"**[View Document in Drive]({upload_link})**")
-                            st.cache_data.clear() # Clear cache to update the next doc number
-                        else:
-                            st.error("Failed to save PDF to Google Drive.")
-
-                        st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
-                    
+                        st.success("DEBUG TEST PASSED: Minimal PDF was generated successfully!")
+                        st.download_button("Download Test PDF", pdf_output_bytes, "test.pdf", "application/pdf")
                     else:
-                        st.error("Failed to generate valid PDF content. The resulting file is empty.")
+                        st.error("DEBUG TEST FAILED: Even the simplest PDF could not be generated.")
                     
     else:
         st.error("Access restricted to Admin or Manager for Invoice Generation.")
@@ -1872,6 +1841,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
