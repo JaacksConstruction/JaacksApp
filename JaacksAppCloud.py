@@ -282,8 +282,8 @@ class PDF(FPDF):
             #self.cell(0, 5, str(self.company_details.get("address", "")), 0, 1, 'C')
             #self.cell(0, 5, f"Phone: {self.company_details.get('phone','')} | Email: {self.company_details.get('email','')}", 0, 1, 'C')
             #self.ln(10)
-        except Exception as e:
-            st.warning(f"Could not generate PDF header: {e}")
+        #except Exception as e:
+            #st.warning(f"Could not generate PDF header: {e}")
 
     def footer(self):
         self.set_y(-15)
@@ -1841,6 +1841,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
