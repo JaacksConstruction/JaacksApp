@@ -268,12 +268,14 @@ class PDF(FPDF):
         self.logo_path = logo_path
         self.set_auto_page_break(auto=True, margin=15)
         self.set_draw_color(200, 200, 200)
+        # Use a standard, reliable font
         self.font_family = "Arial"
 
     def header(self):
         try:
             if self.logo_path and Path(self.logo_path).is_file():
                 self.image(self.logo_path, x=10, y=8, w=33)
+            
             self.set_font(self.font_family, 'B', 16)
             self.cell(0, 10, str(self.company_details.get("name", "")), 0, 1, 'C')
             self.set_font(self.font_family, '', 9)
@@ -287,18 +289,18 @@ class PDF(FPDF):
         self.set_y(-15)
         self.set_font(self.font_family, 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-
+    
     def document_title_section(self, title, doc_num, issue_date):
         self.set_font(self.font_family, 'B', 18)
         self.cell(0, 10, str(title).upper(), 0, 0, 'R'); self.ln(6)
         self.set_font(self.font_family, '', 10)
-        self.cell(0, 7, f"{title} #: {doc_num}", 0, 1, 'R')
+        self.cell(0, 7, f"{title} #: {str(doc_num)}", 0, 1, 'R')
         self.cell(0, 7, f"Date: {issue_date.strftime('%B %d, %Y')}", 0, 1, 'R'); self.ln(7)
 
     def bill_to_job_info(self, client_data, job_data):
         x_start, y_start, line_height = self.get_x(), self.get_y(), 6
         
-        # Safely get and format the address, ensuring all parts are strings
+        # Safely get and format the address
         client_address = str(client_data.get('ClientAddress', ''))
         client_city = str(client_data.get('ClientCity', ''))
         client_state = str(client_data.get('ClientState', ''))
@@ -328,7 +330,6 @@ class PDF(FPDF):
         job_details_height = self.get_y() - y_start
         self.set_y(y_start + max(bill_to_height, job_details_height) + 5); self.ln(5)
 
-    
     def line_items_table(self, headers, data, col_widths):
         self.set_font(self.font_family, 'B', 9)
         self.set_fill_color(230, 230, 230)
@@ -336,7 +337,6 @@ class PDF(FPDF):
             self.cell(col_widths[i], 7, h, 1, 0, 'C', True)
         self.ln()
         self.set_font(self.font_family, '', 9)
-        self.set_fill_color(255, 255, 255)
         for row in data:
             if self.get_y() + 15 > self.page_break_trigger:
                 self.add_page()
@@ -346,6 +346,7 @@ class PDF(FPDF):
                     self.cell(col_widths[i], 7, h, 1, 0, 'C', True)
                 self.ln()
                 self.set_font(self.font_family, '', 9)
+
             y_before_row = self.get_y()
             self.multi_cell(col_widths[0], 6, str(row[0]), border='LR', align='L')
             desc_height = self.get_y() - y_before_row
@@ -369,25 +370,21 @@ class PDF(FPDF):
     def notes_terms_signatures(self, notes, terms, sig_h=20):
         if self.get_y() + 70 > self.h - self.b_margin:
             self.add_page()
-        
         self.set_font(self.font_family, 'B', 10)
         self.cell(0, 6, "Notes / Inscription:", 0, 1, 'L')
         self.set_font(self.font_family, '', 9)
-        self.multi_cell(0, 5, notes if notes else "N/A", 0, 'L'); self.ln(3)
-        
+        self.multi_cell(0, 5, str(notes) if notes else "N/A", 0, 'L'); self.ln(3)
         self.set_font(self.font_family, 'B', 10)
         self.cell(0, 6, "Terms & Conditions:", 0, 1, 'L')
         self.set_font(self.font_family, '', 9)
-        self.multi_cell(0, 5, terms, 0, 'L'); self.ln(10)
-        
+        self.multi_cell(0, 5, str(terms), 0, 'L'); self.ln(10)
         y_for_signatures = self.h - self.b_margin - sig_h - 5
         if self.get_y() > y_for_signatures:
             self.add_page()
         self.set_y(y_for_signatures)
-        
         self.set_font(self.font_family, '', 10)
         self.cell(80, sig_h, "Customer Signature:", "T", 0, 'L'); self.cell(30, sig_h, "", 0, 0); self.cell(80, sig_h, "Contractor Signature:", "T", 1, 'L')
-
+        
 # --- Initialize Session State ---
 default_session_states = {
     "logged_in_user": None, "authentication_status": False, "current_page_users": 0,
@@ -1663,26 +1660,39 @@ elif section == 'Invoice Generation':
         if st.button(f"Generate {doc_type_selected_ig} PDF", key="ig_final_generate_pdf_btn", type="primary"):
             if selected_job_data_for_doc_ig is None:
                 st.error("Please select a valid Client and Job before generating the PDF.")
+            elif not any(str(item.get('description','')).strip() for item in st.session_state.invoice_line_items):
+                st.error("Cannot generate PDF. Please add at least one line item with a description.")
             else:
                 with st.spinner("Generating and uploading PDF..."):
+                    # --- PDF Building Logic ---
                     pdf_gen_doc = PDF(company_details_for_pdf_doc_ig, logo_path=LOGO_PATH)
                     pdf_gen_doc.add_page()
                     pdf_gen_doc.document_title_section(doc_type_selected_ig, doc_number_input_ig, doc_date_input_ig)
                     pdf_gen_doc.bill_to_job_info(client_data=selected_job_data_for_doc_ig, job_data=selected_job_data_for_doc_ig)
+                    
                     pdf_line_headers = ["Description", "Quantity", "Unit Price", "Total"]
                     pdf_line_col_widths = [95, 25, 35, 35]
-                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])] for item in st.session_state.invoice_line_items if item.get('description','').strip()]
-                    #pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
+                    pdf_line_data = [[item['description'], format_hours(item['quantity'], 2), format_currency(item['unit_price']), format_currency(item['total'])]
+                                     for item in st.session_state.invoice_line_items if item.get('description','').strip()]
+                    
+                    pdf_gen_doc.line_items_table(pdf_line_headers, pdf_line_data, pdf_line_col_widths)
                     pdf_gen_doc.totals_section(final_subtotal_ig, f"Tax ({tax_rate_input_ig}%)", final_tax_amount_ig, final_grand_total_ig)
                     pdf_gen_doc.notes_terms_signatures(doc_notes_input_ig, st.session_state.invoice_terms)
                     
+                    # --- Finalization and Validation ---
                     pdf_output_bytes = pdf_gen_doc.output()
 
                     if pdf_output_bytes and isinstance(pdf_output_bytes, bytes):
                         pdf_final_filename = f"{doc_number_input_ig}.pdf"
+                        
                         class DummyFile:
-                            def __init__(self, content, name): self._content = content; self.name = name; self.type = "application/pdf"
-                            def getvalue(self): return self._content
+                            def __init__(self, content, name):
+                                self._content = content
+                                self.name = name
+                                self.type = "application/pdf"
+                            def getvalue(self):
+                                return self._content
+
                         dummy_pdf_file = DummyFile(pdf_output_bytes, pdf_final_filename)
                         upload_link = upload_file_to_drive(dummy_pdf_file, pdf_final_filename, DRIVE_FOLDER_ID_ESTIMATES_INVOICES)
 
@@ -1694,14 +1704,18 @@ elif section == 'Invoice Generation':
                             else:
                                 updated_df = pd.concat([invoices_df, pd.DataFrame([new_doc_record])], ignore_index=True)
                                 save_data(updated_df, 'invoices')
+                            
                             st.success("Generated PDF saved to Google Drive.")
                             st.markdown(f"**[View Document in Drive]({upload_link})**")
-                            st.cache_data.clear()
+                            st.cache_data.clear() # Clear cache to update the next doc number
                         else:
                             st.error("Failed to save PDF to Google Drive.")
+
                         st.download_button("Download PDF", pdf_output_bytes, pdf_final_filename, "application/pdf")
+                    
                     else:
                         st.error("Failed to generate valid PDF content. The resulting file is empty.")
+                    
     else:
         st.error("Access restricted to Admin or Manager for Invoice Generation.")
 
@@ -1858,6 +1872,7 @@ elif section == 'Reports & Analytics':
 # --- Footer ---
 st.sidebar.markdown("---")
 st.sidebar.write("Powered by JC")
+
 
 
 
